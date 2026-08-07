@@ -27,8 +27,6 @@
           <button class="mode" data-profile="heavy-b" title="მძიმე B კატეგორია">🚐 <span>მძიმე B</span></button>
         </div>
         <p id="vehicleNote" class="vehicle-note"></p>
-        <button id="activeTruckCard" class="active-truck-card" type="button" hidden></button>
-        <section id="savedTrucksSidebar" class="saved-trucks-sidebar" hidden></section>
 
         <section class="route-panel">
           <div class="route-panel-title"><span>გაჩერებები</span><span id="stopCount">3 წერტილი</span></div>
@@ -67,26 +65,26 @@
           <button id="closeTruckModal" class="modal-close" type="button" aria-label="დახურვა">×</button>
         </div>
         <p class="truck-modal-intro">ამ მონაცემებით TomTom ითვალისწინებს სატვირთოს სიჩქარესა და გზის ზომით/წონით შეზღუდვებს.</p>
-        <div class="truck-manager">
-          <aside class="truck-library">
-            <div class="truck-library-heading"><span>Saved trucks</span><button id="newTruckProfile" type="button">+ Add</button></div>
-            <div id="truckList" class="truck-list"></div>
-          </aside>
-          <div class="truck-editor">
-            <p class="truck-editor-note">Select a saved truck, or add a new profile. Values entered below are displayed in US units and are converted for TomTom automatically.</p>
-            <form id="truckForm" class="truck-form">
-              <label class="truck-field wide">Truck name<input name="name" type="text" maxlength="40" placeholder="Example: Volvo FH 2022" required /></label>
-              <label class="truck-field">Max speed, mph<input name="maxSpeedMph" type="number" min="1" max="155" value="50" required /></label>
-              <label class="truck-field">Weight, lb<input name="weightLb" type="number" min="0" step="100" placeholder="40000" /></label>
-              <label class="truck-field">Axle weight, lb<input name="axleWeightLb" type="number" min="0" step="100" placeholder="20000" /></label>
-              <label class="truck-field">Number of axles<input name="axles" type="number" min="0" max="12" step="1" placeholder="3" /></label>
-              <label class="truck-field">Length, ft<input name="lengthFt" type="number" min="0" step="0.1" placeholder="53" /></label>
-              <label class="truck-field">Width, ft<input name="widthFt" type="number" min="0" step="0.1" placeholder="8.5" /></label>
-              <label class="truck-field">Height, ft<input name="heightFt" type="number" min="0" step="0.1" placeholder="13.5" /></label>
-              <p class="truck-form-note wide">Blank values are not sent to TomTom. A complete profile gives truck routing the best restriction data.</p>
-              <div class="truck-form-actions wide"><button id="deleteTruckProfile" class="delete-truck" type="button">Delete selected</button><button class="primary" type="submit">Save and use truck <span>?</span></button></div>
-            </form>
-          </div>
+        <div class="truck-library-view" id="truckLibraryView">
+          <div class="truck-library-heading"><div><span>Truck profiles</span><small>Choose, edit, or remove saved trucks</small></div><button id="newTruckProfile" type="button">+ Add truck</button></div>
+          <div id="truckEmptyState" class="truck-empty-state"><b>No saved trucks yet</b><span>Add your first truck profile to use truck restrictions while routing.</span></div>
+          <div id="truckList" class="truck-list"></div>
+        </div>
+        <div class="truck-editor-view" id="truckEditorView" hidden>
+          <button id="backToTruckList" class="back-to-trucks" type="button">? Back to saved trucks</button>
+          <p class="truck-editor-note">Create a profile in US units. Routewise converts these values before sending them to TomTom.</p>
+          <form id="truckForm" class="truck-form">
+            <label class="truck-field wide">Truck name<input name="name" type="text" maxlength="40" placeholder="Example: Volvo FH 2022" required /></label>
+            <label class="truck-field">Max speed, mph<input name="maxSpeedMph" type="number" min="1" max="155" value="50" required /></label>
+            <label class="truck-field">Weight, lb<input name="weightLb" type="number" min="0" step="100" placeholder="40000" /></label>
+            <label class="truck-field">Axle weight, lb<input name="axleWeightLb" type="number" min="0" step="100" placeholder="20000" /></label>
+            <label class="truck-field">Number of axles<input name="axles" type="number" min="0" max="12" step="1" placeholder="3" /></label>
+            <label class="truck-field">Length, ft<input name="lengthFt" type="number" min="0" step="0.1" placeholder="53" /></label>
+            <label class="truck-field">Width, ft<input name="widthFt" type="number" min="0" step="0.1" placeholder="8.5" /></label>
+            <label class="truck-field">Height, ft<input name="heightFt" type="number" min="0" step="0.1" placeholder="13.5" /></label>
+            <p class="truck-form-note wide">Blank values are not sent to TomTom. A complete profile gives truck routing the best restriction data.</p>
+            <button class="primary wide" type="submit">Save truck profile <span>?</span></button>
+          </form>
         </div>
       </section>
     </div>
