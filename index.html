@@ -28,6 +28,7 @@
         </div>
         <p id="vehicleNote" class="vehicle-note"></p>
         <button id="activeTruckCard" class="active-truck-card" type="button" hidden></button>
+        <section id="savedTrucksSidebar" class="saved-trucks-sidebar" hidden></section>
 
         <section class="route-panel">
           <div class="route-panel-title"><span>გაჩერებები</span><span id="stopCount">3 წერტილი</span></div>
@@ -66,22 +67,27 @@
           <button id="closeTruckModal" class="modal-close" type="button" aria-label="დახურვა">×</button>
         </div>
         <p class="truck-modal-intro">ამ მონაცემებით TomTom ითვალისწინებს სატვირთოს სიჩქარესა და გზის ზომით/წონით შეზღუდვებს.</p>
-        <div class="saved-truck-picker">
-          <label for="truckSelector">არჩეული სატვირთო</label>
-          <div><select id="truckSelector"></select><button id="newTruckProfile" type="button">ახალი</button><button id="deleteTruckProfile" type="button" title="არჩეული პროფილის წაშლა">წაშლა</button></div>
+        <div class="truck-manager">
+          <aside class="truck-library">
+            <div class="truck-library-heading"><span>Saved trucks</span><button id="newTruckProfile" type="button">+ Add</button></div>
+            <div id="truckList" class="truck-list"></div>
+          </aside>
+          <div class="truck-editor">
+            <p class="truck-editor-note">Select a saved truck, or add a new profile. Values entered below are displayed in US units and are converted for TomTom automatically.</p>
+            <form id="truckForm" class="truck-form">
+              <label class="truck-field wide">Truck name<input name="name" type="text" maxlength="40" placeholder="Example: Volvo FH 2022" required /></label>
+              <label class="truck-field">Max speed, mph<input name="maxSpeedMph" type="number" min="1" max="155" value="50" required /></label>
+              <label class="truck-field">Weight, lb<input name="weightLb" type="number" min="0" step="100" placeholder="40000" /></label>
+              <label class="truck-field">Axle weight, lb<input name="axleWeightLb" type="number" min="0" step="100" placeholder="20000" /></label>
+              <label class="truck-field">Number of axles<input name="axles" type="number" min="0" max="12" step="1" placeholder="3" /></label>
+              <label class="truck-field">Length, ft<input name="lengthFt" type="number" min="0" step="0.1" placeholder="53" /></label>
+              <label class="truck-field">Width, ft<input name="widthFt" type="number" min="0" step="0.1" placeholder="8.5" /></label>
+              <label class="truck-field">Height, ft<input name="heightFt" type="number" min="0" step="0.1" placeholder="13.5" /></label>
+              <p class="truck-form-note wide">Blank values are not sent to TomTom. A complete profile gives truck routing the best restriction data.</p>
+              <div class="truck-form-actions wide"><button id="deleteTruckProfile" class="delete-truck" type="button">Delete selected</button><button class="primary" type="submit">Save and use truck <span>?</span></button></div>
+            </form>
+          </div>
         </div>
-        <form id="truckForm" class="truck-form">
-          <label class="truck-field wide">პროფილის სახელი<input name="name" type="text" maxlength="40" placeholder="მაგ: Volvo FH 2022" required /></label>
-          <label class="truck-field">მაქს. სიჩქარე, კმ/სთ<input name="maxSpeedKph" type="number" min="1" max="250" value="80" required /></label>
-          <label class="truck-field">წონა, კგ<input name="weightKg" type="number" min="0" step="50" placeholder="18000" /></label>
-          <label class="truck-field">ღერძზე წონა, კგ<input name="axleWeightKg" type="number" min="0" step="50" placeholder="9000" /></label>
-          <label class="truck-field">ღერძების რაოდენობა<input name="axles" type="number" min="0" max="12" step="1" placeholder="3" /></label>
-          <label class="truck-field">სიგრძე, მეტრი<input name="lengthM" type="number" min="0" step="0.01" placeholder="16.50" /></label>
-          <label class="truck-field">სიგანე, მეტრი<input name="widthM" type="number" min="0" step="0.01" placeholder="2.55" /></label>
-          <label class="truck-field">სიმაღლე, მეტრი<input name="heightM" type="number" min="0" step="0.01" placeholder="4.00" /></label>
-          <p class="truck-form-note wide">ცარიელი ველები TomTom-ს არ ეგზავნება. სრულად შევსებული პროფილი route-ის შეზღუდვებს უფრო ზუსტად ითვალისწინებს.</p>
-          <button class="primary wide" type="submit">პროფილის შენახვა და გამოყენება <span>→</span></button>
-        </form>
       </section>
     </div>
     <template id="stopTemplate">

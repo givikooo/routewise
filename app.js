@@ -30,6 +30,12 @@ let calculateTimer;
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const fmtDistance = meters => { const miles = Number(meters || 0) / 1609.344; return `${miles.toFixed(miles >= 100 ? 0 : 1)} mi`; };
+const kphToMph = value => Number(value || 0) * 0.621371;
+const mphToKph = value => Number(value || 0) / 0.621371;
+const kgToLb = value => Number(value || 0) * 2.20462262;
+const lbToKg = value => Number(value || 0) / 2.20462262;
+const metersToFeet = value => Number(value || 0) * 3.28084;
+const feetToMeters = value => Number(value || 0) / 3.28084;
 const fmtTime = seconds => {
   const minutes = Math.max(0, Math.round(seconds / 60));
   return minutes >= 60 ? `${Math.floor(minutes / 60)} სთ ${minutes % 60} წთ` : `${minutes} წთ`;
@@ -44,10 +50,11 @@ function activeTruck() { return truckProfiles.find(truck => truck.id === activeT
 function activeVehicle() { return vehicleProfile === 'truck' ? activeTruck() : vehicleProfiles[vehicleProfile]; }
 function truckSummary(truck) {
   const details = [];
-  if (truck.weightKg) details.push(`${truck.weightKg.toLocaleString()} კგ`);
-  if (truck.lengthM && truck.heightM) details.push(`${truck.lengthM}×${truck.heightM} მ`);
-  return details.join(' · ') || `მაქს. ${truck.maxSpeedKph} კმ/სთ`;
-}const routeDuration = summary => Math.max(Number(summary?.travelTimeInSeconds) || 0, (Number(summary?.lengthInMeters) || 0) / (activeVehicle().maxSpeedKph / 3.6));
+  if (truck.weightKg) details.push(`${Math.round(kgToLb(truck.weightKg)).toLocaleString()} lb`);
+  if (truck.lengthM && truck.heightM) details.push(`${metersToFeet(truck.lengthM).toFixed(1)} x ${metersToFeet(truck.heightM).toFixed(1)} ft`);
+  return details.join(' / ') || `Max. ${Math.round(kphToMph(truck.maxSpeedKph))} mph`;
+}
+const routeDuration = summary => Math.max(Number(summary?.travelTimeInSeconds) || 0, (Number(summary?.lengthInMeters) || 0) / (activeVehicle().maxSpeedKph / 3.6));
 
 function getUsage() {
   const month = new Date().toISOString().slice(0, 7);
@@ -84,45 +91,54 @@ function parseCoordinates(value) {
 function renderVehicleNote() {
   const vehicle = activeVehicle();
   document.getElementById('vehicleNote').textContent = vehicleProfile === 'truck'
-    ? `TomTom Truck routing · ${vehicle.name} · მაქს. ${vehicle.maxSpeedKph} კმ/სთ`
-    : `${vehicle.label} · მაქს. ${vehicle.maxSpeedKph} კმ/სთ`;
+    ? `TomTom Truck routing - ${vehicle.name} - max. ${Math.round(kphToMph(vehicle.maxSpeedKph))} mph`
+    : `${vehicle.label} - max. ${Math.round(kphToMph(vehicle.maxSpeedKph))} mph`;
 }
 function renderTruckControls() {
   const truck = activeTruck();
   const card = document.getElementById('activeTruckCard');
+  const sidebar = document.getElementById('savedTrucksSidebar');
   card.hidden = vehicleProfile !== 'truck';
-  card.innerHTML = `<span>არჩეული სატვირთო</span><b>${escapeHtml(truck.name)}</b><small>${escapeHtml(truckSummary(truck))}</small><i>შეცვლა ›</i>`;
-  const selector = document.getElementById('truckSelector');
-  selector.innerHTML = `<option value="default">საბაზისო Truck — 80 კმ/სთ</option>${truckProfiles.map(profile => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} — ${profile.maxSpeedKph} კმ/სთ</option>`).join('')}`;
-  selector.value = activeTruckId;
+  sidebar.hidden = vehicleProfile !== 'truck' || truckProfiles.length === 0;
+  card.innerHTML = `<span>Selected truck</span><b>${escapeHtml(truck.name)}</b><small>${escapeHtml(truckSummary(truck))}</small><i>Change ?</i>`;
+  const listMarkup = [`<button class="truck-list-item ${activeTruckId === 'default' ? 'active' : ''}" type="button" data-truck-id="default"><b>Base Truck</b><small>${escapeHtml(truckSummary(DEFAULT_TRUCK))}</small></button>`, ...truckProfiles.map(profile => `<button class="truck-list-item ${profile.id === activeTruckId ? 'active' : ''}" type="button" data-truck-id="${escapeHtml(profile.id)}"><b>${escapeHtml(profile.name)}</b><small>${escapeHtml(truckSummary(profile))}</small></button>`)].join('');
+  document.getElementById('truckList').innerHTML = listMarkup;
+  sidebar.innerHTML = `<div class="saved-trucks-title"><span>Saved trucks</span><button type="button" data-add-truck>+ Add</button></div><div class="saved-trucks-list">${truckProfiles.map(profile => `<button type="button" class="saved-truck-item ${profile.id === activeTruckId ? 'active' : ''}" data-truck-id="${escapeHtml(profile.id)}"><b>${escapeHtml(profile.name)}</b><small>${escapeHtml(truckSummary(profile))}</small></button>`).join('')}</div>`;
+  document.querySelectorAll('[data-truck-id]').forEach(button => { button.onclick = () => selectTruck(button.dataset.truckId); });
+  document.querySelectorAll('[data-add-truck]').forEach(button => { button.onclick = openNewTruckForm; });
   document.getElementById('deleteTruckProfile').disabled = activeTruckId === 'default';
 }
 function fillTruckForm(truck = DEFAULT_TRUCK, editing = false) {
   const form = document.getElementById('truckForm');
   form.dataset.editId = editing ? truck.id : '';
   form.elements.name.value = editing ? truck.name : '';
-  form.elements.maxSpeedKph.value = truck.maxSpeedKph || 80;
-  form.elements.weightKg.value = editing && truck.weightKg ? truck.weightKg : '';
-  form.elements.axleWeightKg.value = editing && truck.axleWeightKg ? truck.axleWeightKg : '';
+  form.elements.maxSpeedMph.value = Math.max(1, Math.round(kphToMph(truck.maxSpeedKph || 80)));
+  form.elements.weightLb.value = editing && truck.weightKg ? Math.round(kgToLb(truck.weightKg)) : '';
+  form.elements.axleWeightLb.value = editing && truck.axleWeightKg ? Math.round(kgToLb(truck.axleWeightKg)) : '';
   form.elements.axles.value = editing && truck.axles ? truck.axles : '';
-  form.elements.lengthM.value = editing && truck.lengthM ? truck.lengthM : '';
-  form.elements.widthM.value = editing && truck.widthM ? truck.widthM : '';
-  form.elements.heightM.value = editing && truck.heightM ? truck.heightM : '';
+  form.elements.lengthFt.value = editing && truck.lengthM ? metersToFeet(truck.lengthM).toFixed(1) : '';
+  form.elements.widthFt.value = editing && truck.widthM ? metersToFeet(truck.widthM).toFixed(1) : '';
+  form.elements.heightFt.value = editing && truck.heightM ? metersToFeet(truck.heightM).toFixed(1) : '';
+}
+function openNewTruckForm() {
+  const modal = document.getElementById('truckModal');
+  modal.hidden = false; modal.setAttribute('aria-hidden', 'false');
+  fillTruckForm(DEFAULT_TRUCK, false);
+  setTimeout(() => document.querySelector('#truckForm input[name="name"]')?.focus(), 50);
 }
 function openTruckModal() {
   const modal = document.getElementById('truckModal');
   renderTruckControls(); fillTruckForm(activeTruck(), activeTruckId !== 'default');
   modal.hidden = false; modal.setAttribute('aria-hidden', 'false');
-  setTimeout(() => document.querySelector('#truckForm input[name="name"]')?.focus(), 50);
 }
 function closeTruckModal() { const modal = document.getElementById('truckModal'); modal.hidden = true; modal.setAttribute('aria-hidden', 'true'); }
 function saveTruckProfile(event) {
   event.preventDefault(); const form = event.currentTarget;
   const profile = {
     id: form.dataset.editId || (crypto.randomUUID ? crypto.randomUUID() : `truck-${Date.now()}`), name: form.elements.name.value.trim(),
-    maxSpeedKph: Math.min(250, Math.max(1, numberOrZero(form.elements.maxSpeedKph.value) || 80)),
-    weightKg: numberOrZero(form.elements.weightKg.value), axleWeightKg: numberOrZero(form.elements.axleWeightKg.value), axles: numberOrZero(form.elements.axles.value),
-    lengthM: numberOrZero(form.elements.lengthM.value), widthM: numberOrZero(form.elements.widthM.value), heightM: numberOrZero(form.elements.heightM.value), travelMode: 'truck'
+    maxSpeedKph: Math.min(250, Math.max(1, mphToKph(numberOrZero(form.elements.maxSpeedMph.value) || 50))),
+    weightKg: lbToKg(numberOrZero(form.elements.weightLb.value)), axleWeightKg: lbToKg(numberOrZero(form.elements.axleWeightLb.value)), axles: numberOrZero(form.elements.axles.value),
+    lengthM: feetToMeters(numberOrZero(form.elements.lengthFt.value)), widthM: feetToMeters(numberOrZero(form.elements.widthFt.value)), heightM: feetToMeters(numberOrZero(form.elements.heightFt.value)), travelMode: 'truck'
   };
   if (!profile.name) return;
   const currentIndex = truckProfiles.findIndex(truck => truck.id === profile.id);
@@ -137,6 +153,7 @@ function deleteSelectedTruck() {
   truckProfiles = truckProfiles.filter(truck => truck.id !== activeTruckId); activeTruckId = 'default';
   saveTruckProfiles(); renderTruckControls(); fillTruckForm(DEFAULT_TRUCK, false); renderVehicleNote(); calculate();
 }
+
 function clearRoute() {
   routeLines.forEach(line => line.remove());
   routeLines = [];
@@ -317,7 +334,7 @@ function renderRouteMetrics() {
   const pauseSeconds = stops.slice(1).reduce((sum, stop) => sum + (Number(stop.delayMinutes) || 0) * 60, 0);
   document.getElementById('totalDistance').textContent = fmtDistance(distance);
   document.getElementById('totalDuration').textContent = fmtTime(movingSeconds + pauseSeconds);
-  document.getElementById('routeBadge').textContent = `${lastLegs.length} მონაკვეთი · ≤${activeVehicle().maxSpeedKph} კმ/სთ${pauseSeconds ? ` + ${Math.round(pauseSeconds / 60)} წთ` : ''}`;
+  document.getElementById('routeBadge').textContent = `${lastLegs.length} legs - <=${Math.round(kphToMph(activeVehicle().maxSpeedKph))} mph${pauseSeconds ? ` + ${Math.round(pauseSeconds / 60)} min` : ''}`;
   legsEl.innerHTML = lastLegs.map((leg, index) => {
     const pause = Number(stops[index + 1]?.delayMinutes) || 0;
     const summary = leg.summary || {};
@@ -401,7 +418,6 @@ document.getElementById('activeTruckCard').onclick = openTruckModal;
 document.getElementById('closeTruckModal').onclick = closeTruckModal;
 document.querySelector('[data-close-truck-modal]').onclick = closeTruckModal;
 document.getElementById('truckForm').addEventListener('submit', saveTruckProfile);
-document.getElementById('truckSelector').addEventListener('change', event => selectTruck(event.target.value));
 document.getElementById('newTruckProfile').onclick = () => fillTruckForm(DEFAULT_TRUCK, false);
 document.getElementById('deleteTruckProfile').onclick = deleteSelectedTruck;
 
