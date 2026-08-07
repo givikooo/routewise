@@ -495,10 +495,11 @@ async function calculate() {
     traffic: 'true',
     travelMode: vehicle.travelMode,
     routeRepresentation: 'polyline',
-    sectionType: 'traffic,toll',
+    sectionType: 'traffic',
     maxAlternatives: '2',
     includeTollPaymentTypes: 'all'
   });
+  params.append('sectionType', 'toll');
   if (document.getElementById('avoidTolls')?.checked) params.append('avoid', 'tollRoads');
   if (vehicle.travelMode === 'truck') {
     params.set('vehicleMaxSpeed', String(Math.round(vehicle.maxSpeedKph)));
