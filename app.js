@@ -32,6 +32,7 @@ let calculateTimer;
 let selectedRoute = null;
 let lastRoutes = [];
 let routeStopSuggestions = [];
+let routeCalculatedAt = null;
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const fmtDistance = meters => { const miles = Number(meters || 0) / 1609.344; return `${miles.toFixed(miles >= 100 ? 0 : 1)} mi`; };
@@ -45,6 +46,13 @@ const fmtTime = seconds => {
   const minutes = Math.max(0, Math.round(seconds / 60));
   return minutes >= 60 ? `${Math.floor(minutes / 60)} სთ ${minutes % 60} წთ` : `${minutes} წთ`;
 };
+function formatRouteClock(date) {
+  const clock = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
+  const today = new Date();
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+  const day = date.toDateString() === today.toDateString() ? 'დღეს' : date.toDateString() === tomorrow.toDateString() ? 'ხვალ' : new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+  return { clock, day };
+}
 const setStatus = message => { statusEl.textContent = message; };
 function numberOrZero(value) { return Math.max(0, Number(value) || 0); }
 function loadTruckProfiles() {
@@ -464,8 +472,17 @@ function renderRouteMetrics() {
   const movingSeconds = lastLegs.reduce((sum, leg) => sum + routeDuration(leg.summary), 0);
   const pauseSeconds = stops.slice(1).reduce((sum, stop) => sum + (Number(stop.delayMinutes) || 0) * 60, 0);
   const hos = calculateHosPlan();
+  const totalSeconds = movingSeconds + pauseSeconds + hos.addedRestSeconds;
+  const calculatedAt = routeCalculatedAt || new Date();
+  const arrival = new Date(calculatedAt.getTime() + totalSeconds * 1000);
+  const calculatedClock = formatRouteClock(calculatedAt);
+  const arrivalClock = formatRouteClock(arrival);
   document.getElementById('totalDistance').textContent = fmtDistance(distance);
-  document.getElementById('totalDuration').textContent = fmtTime(movingSeconds + pauseSeconds + hos.addedRestSeconds);
+  document.getElementById('totalDuration').textContent = fmtTime(totalSeconds);
+  document.getElementById('calculatedAt').textContent = calculatedClock.clock;
+  document.getElementById('calculatedAtDay').textContent = calculatedClock.day;
+  document.getElementById('estimatedArrival').textContent = arrivalClock.clock;
+  document.getElementById('estimatedArrivalDay').textContent = arrivalClock.day;
   document.getElementById('routeBadge').textContent = `${lastLegs.length} legs - <=${Math.round(kphToMph(activeVehicle().maxSpeedKph))} mph${hos.breaks ? ` + ${hos.breaks} break` : ''}`;
   legsEl.innerHTML = lastLegs.map((leg, index) => {
     const pause = Number(stops[index + 1]?.delayMinutes) || 0;
