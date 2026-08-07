@@ -29,7 +29,7 @@ let lastLegs = [];
 let calculateTimer;
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
-const fmtDistance = meters => meters >= 1000 ? `${(meters / 1000).toFixed(meters > 10000 ? 0 : 1)} კმ` : `${Math.round(meters)} მ`;
+const fmtDistance = meters => { const miles = Number(meters || 0) / 1609.344; return `${miles.toFixed(miles >= 100 ? 0 : 1)} mi`; };
 const fmtTime = seconds => {
   const minutes = Math.max(0, Math.round(seconds / 60));
   return minutes >= 60 ? `${Math.floor(minutes / 60)} სთ ${minutes % 60} წთ` : `${minutes} წთ`;
