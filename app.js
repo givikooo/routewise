@@ -9,39 +9,45 @@ const stopsEl = document.getElementById('stops');
 const legsEl = document.getElementById('legs');
 const statusEl = document.getElementById('status');
 const usageLimits = { maps: 200000, search: 10000, routing: 20000 };
-const usageLabels = { maps: 'რუკა', search: 'ძიება', routing: 'მარშრუტი' };
+const usageLabels = { maps: 'Ã¡Æ’Â Ã¡Æ’Â£Ã¡Æ’â„¢Ã¡Æ’Â', search: 'Ã¡Æ’Â«Ã¡Æ’ËœÃ¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’Â', routing: 'Ã¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’Â Ã¡Æ’Â¨Ã¡Æ’Â Ã¡Æ’Â£Ã¡Æ’Â¢Ã¡Æ’Ëœ' };
+const DEFAULT_TRUCK = {
+  id: 'default', name: 'áƒ¡áƒáƒ‘áƒáƒ–áƒ˜áƒ¡áƒ Truck', maxSpeedKph: 80,
+  weightKg: 0, axleWeightKg: 0, axles: 0, lengthM: 0, widthM: 0, heightM: 0,
+  travelMode: 'truck'
+};
 const vehicleProfiles = {
-  truck: {
-    label: 'Truck',
-    maxSpeedKph: 80,
-    travelMode: 'truck',
-    note: 'TomTom Truck routing · მაქს. 80 კმ/სთ'
-  },
-  'heavy-b': {
-    label: 'მძიმე B',
-    maxSpeedKph: 90,
-    travelMode: 'car',
-    note: 'მძიმე B · მაქს. 90 კმ/სთ'
-  }
+  'heavy-b': { label: 'áƒ›áƒ«áƒ˜áƒ›áƒ” B', maxSpeedKph: 90, travelMode: 'car' }
 };
 
 let stops = initialStops.map(stop => ({ ...stop }));
 let vehicleProfile = 'truck';
-let map;
+let truckProfiles = loadTruckProfiles();
+let activeTruckId = localStorage.getItem('routewise-active-truck') || 'default';let map;
 let markers = [];
 let routeLines = [];
 let lastLegs = [];
 let calculateTimer;
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
-const fmtDistance = meters => meters >= 1000 ? `${(meters / 1000).toFixed(meters > 10000 ? 0 : 1)} კმ` : `${Math.round(meters)} მ`;
+const fmtDistance = meters => meters >= 1000 ? `${(meters / 1000).toFixed(meters > 10000 ? 0 : 1)} Ã¡Æ’â„¢Ã¡Æ’â€º` : `${Math.round(meters)} Ã¡Æ’â€º`;
 const fmtTime = seconds => {
   const minutes = Math.max(0, Math.round(seconds / 60));
-  return minutes >= 60 ? `${Math.floor(minutes / 60)} სთ ${minutes % 60} წთ` : `${minutes} წთ`;
+  return minutes >= 60 ? `${Math.floor(minutes / 60)} Ã¡Æ’Â¡Ã¡Æ’â€” ${minutes % 60} Ã¡Æ’Â¬Ã¡Æ’â€”` : `${minutes} Ã¡Æ’Â¬Ã¡Æ’â€”`;
 };
 const setStatus = message => { statusEl.textContent = message; };
-const activeVehicle = () => vehicleProfiles[vehicleProfile];
-const routeDuration = summary => Math.max(Number(summary?.travelTimeInSeconds) || 0, (Number(summary?.lengthInMeters) || 0) / (activeVehicle().maxSpeedKph / 3.6));
+function numberOrZero(value) { return Math.max(0, Number(value) || 0); }
+function loadTruckProfiles() {
+  try { const value = JSON.parse(localStorage.getItem('routewise-truck-profiles') || '[]'); return Array.isArray(value) ? value : []; } catch { return []; }
+}
+function saveTruckProfiles() { localStorage.setItem('routewise-truck-profiles', JSON.stringify(truckProfiles)); localStorage.setItem('routewise-active-truck', activeTruckId); }
+function activeTruck() { return truckProfiles.find(truck => truck.id === activeTruckId) || DEFAULT_TRUCK; }
+function activeVehicle() { return vehicleProfile === 'truck' ? activeTruck() : vehicleProfiles[vehicleProfile]; }
+function truckSummary(truck) {
+  const details = [];
+  if (truck.weightKg) details.push(`${truck.weightKg.toLocaleString()} áƒ™áƒ’`);
+  if (truck.lengthM && truck.heightM) details.push(`${truck.lengthM}Ã—${truck.heightM} áƒ›`);
+  return details.join(' Â· ') || `áƒ›áƒáƒ¥áƒ¡. ${truck.maxSpeedKph} áƒ™áƒ›/áƒ¡áƒ—`;
+}const routeDuration = summary => Math.max(Number(summary?.travelTimeInSeconds) || 0, (Number(summary?.lengthInMeters) || 0) / (activeVehicle().maxSpeedKph / 3.6));
 
 function getUsage() {
   const month = new Date().toISOString().slice(0, 7);
@@ -54,7 +60,7 @@ function renderUsage() {
   document.getElementById('usageMetrics').innerHTML = Object.entries(usageLimits).map(([type, limit]) => {
     const used = usage[type] || 0;
     const remaining = Math.max(0, Math.round((1 - used / limit) * 100));
-    return `<div class="usage-row"><span>${usageLabels[type]}</span><b>${used.toLocaleString()} / ${limit.toLocaleString()}</b><div class="usage-track"><i style="width:${Math.min(100, used / limit * 100)}%"></i></div><small>${remaining}% დარჩა</small></div>`;
+    return `<div class="usage-row"><span>${usageLabels[type]}</span><b>${used.toLocaleString()} / ${limit.toLocaleString()}</b><div class="usage-track"><i style="width:${Math.min(100, used / limit * 100)}%"></i></div><small>${remaining}% Ã¡Æ’â€œÃ¡Æ’ÂÃ¡Æ’Â Ã¡Æ’Â©Ã¡Æ’Â</small></div>`;
   }).join('');
 }
 
@@ -76,9 +82,61 @@ function parseCoordinates(value) {
 }
 
 function renderVehicleNote() {
-  document.getElementById('vehicleNote').textContent = activeVehicle().note;
+  const vehicle = activeVehicle();
+  document.getElementById('vehicleNote').textContent = vehicleProfile === 'truck'
+    ? `TomTom Truck routing Â· ${vehicle.name} Â· áƒ›áƒáƒ¥áƒ¡. ${vehicle.maxSpeedKph} áƒ™áƒ›/áƒ¡áƒ—`
+    : `${vehicle.label} Â· áƒ›áƒáƒ¥áƒ¡. ${vehicle.maxSpeedKph} áƒ™áƒ›/áƒ¡áƒ—`;
 }
-
+function renderTruckControls() {
+  const truck = activeTruck();
+  const card = document.getElementById('activeTruckCard');
+  card.hidden = vehicleProfile !== 'truck';
+  card.innerHTML = `<span>áƒáƒ áƒ©áƒ”áƒ£áƒšáƒ˜ áƒ¡áƒáƒ¢áƒ•áƒ˜áƒ áƒ—áƒ</span><b>${escapeHtml(truck.name)}</b><small>${escapeHtml(truckSummary(truck))}</small><i>áƒ¨áƒ”áƒªáƒ•áƒšáƒ â€º</i>`;
+  const selector = document.getElementById('truckSelector');
+  selector.innerHTML = `<option value="default">áƒ¡áƒáƒ‘áƒáƒ–áƒ˜áƒ¡áƒ Truck â€” 80 áƒ™áƒ›/áƒ¡áƒ—</option>${truckProfiles.map(profile => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} â€” ${profile.maxSpeedKph} áƒ™áƒ›/áƒ¡áƒ—</option>`).join('')}`;
+  selector.value = activeTruckId;
+  document.getElementById('deleteTruckProfile').disabled = activeTruckId === 'default';
+}
+function fillTruckForm(truck = DEFAULT_TRUCK, editing = false) {
+  const form = document.getElementById('truckForm');
+  form.dataset.editId = editing ? truck.id : '';
+  form.elements.name.value = editing ? truck.name : '';
+  form.elements.maxSpeedKph.value = truck.maxSpeedKph || 80;
+  form.elements.weightKg.value = editing && truck.weightKg ? truck.weightKg : '';
+  form.elements.axleWeightKg.value = editing && truck.axleWeightKg ? truck.axleWeightKg : '';
+  form.elements.axles.value = editing && truck.axles ? truck.axles : '';
+  form.elements.lengthM.value = editing && truck.lengthM ? truck.lengthM : '';
+  form.elements.widthM.value = editing && truck.widthM ? truck.widthM : '';
+  form.elements.heightM.value = editing && truck.heightM ? truck.heightM : '';
+}
+function openTruckModal() {
+  const modal = document.getElementById('truckModal');
+  renderTruckControls(); fillTruckForm(activeTruck(), activeTruckId !== 'default');
+  modal.hidden = false; modal.setAttribute('aria-hidden', 'false');
+  setTimeout(() => document.querySelector('#truckForm input[name="name"]')?.focus(), 50);
+}
+function closeTruckModal() { const modal = document.getElementById('truckModal'); modal.hidden = true; modal.setAttribute('aria-hidden', 'true'); }
+function saveTruckProfile(event) {
+  event.preventDefault(); const form = event.currentTarget;
+  const profile = {
+    id: form.dataset.editId || (crypto.randomUUID ? crypto.randomUUID() : `truck-${Date.now()}`), name: form.elements.name.value.trim(),
+    maxSpeedKph: Math.min(250, Math.max(1, numberOrZero(form.elements.maxSpeedKph.value) || 80)),
+    weightKg: numberOrZero(form.elements.weightKg.value), axleWeightKg: numberOrZero(form.elements.axleWeightKg.value), axles: numberOrZero(form.elements.axles.value),
+    lengthM: numberOrZero(form.elements.lengthM.value), widthM: numberOrZero(form.elements.widthM.value), heightM: numberOrZero(form.elements.heightM.value), travelMode: 'truck'
+  };
+  if (!profile.name) return;
+  const currentIndex = truckProfiles.findIndex(truck => truck.id === profile.id);
+  if (currentIndex >= 0) truckProfiles[currentIndex] = profile; else truckProfiles.push(profile);
+  activeTruckId = profile.id; vehicleProfile = 'truck';
+  document.querySelector('.mode.active')?.classList.remove('active'); document.querySelector('[data-profile="truck"]')?.classList.add('active');
+  saveTruckProfiles(); renderTruckControls(); renderVehicleNote(); closeTruckModal(); calculate();
+}
+function selectTruck(id) { activeTruckId = id; saveTruckProfiles(); renderTruckControls(); fillTruckForm(activeTruck(), id !== 'default'); renderVehicleNote(); calculate(); }
+function deleteSelectedTruck() {
+  if (activeTruckId === 'default') return;
+  truckProfiles = truckProfiles.filter(truck => truck.id !== activeTruckId); activeTruckId = 'default';
+  saveTruckProfiles(); renderTruckControls(); fillTruckForm(DEFAULT_TRUCK, false); renderVehicleNote(); calculate();
+}
 function clearRoute() {
   routeLines.forEach(line => line.remove());
   routeLines = [];
@@ -124,7 +182,7 @@ function renderStops() {
     if (index > 0) {
       const delayRow = document.createElement('div');
       delayRow.className = 'delay-row';
-      delayRow.innerHTML = `<span>შეყოვნება პუნქტზე ${index + 1}</span><input type="number" min="0" step="1" value="${stop.delayMinutes || ''}" placeholder="0" /><small>წუთი</small>`;
+      delayRow.innerHTML = `<span>Ã¡Æ’Â¨Ã¡Æ’â€Ã¡Æ’Â§Ã¡Æ’ÂÃ¡Æ’â€¢Ã¡Æ’Å“Ã¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’Â Ã¡Æ’Å¾Ã¡Æ’Â£Ã¡Æ’Å“Ã¡Æ’Â¥Ã¡Æ’Â¢Ã¡Æ’â€“Ã¡Æ’â€ ${index + 1}</span><input type="number" min="0" step="1" value="${stop.delayMinutes || ''}" placeholder="0" /><small>Ã¡Æ’Â¬Ã¡Æ’Â£Ã¡Æ’â€”Ã¡Æ’Ëœ</small>`;
       const delayInput = delayRow.querySelector('input');
       delayInput.addEventListener('input', () => {
         stops[index].delayMinutes = Math.max(0, Number(delayInput.value) || 0);
@@ -133,7 +191,7 @@ function renderStops() {
       stopsEl.append(delayRow);
     }
   });
-  document.getElementById('stopCount').textContent = `${stops.length} წერტილი`;
+  document.getElementById('stopCount').textContent = `${stops.length} Ã¡Æ’Â¬Ã¡Æ’â€Ã¡Æ’Â Ã¡Æ’Â¢Ã¡Æ’ËœÃ¡Æ’Å¡Ã¡Æ’Ëœ`;
 }
 
 function attachSuggestions(input, container, index) {
@@ -181,9 +239,9 @@ function attachSuggestions(input, container, index) {
 
 function showSuggestions(container, results, choose, coordinates = false) {
   if (!results.length) {
-    container.innerHTML = '<div class="suggestion-empty">ადგილი ვერ მოიძებნა.</div>';
+    container.innerHTML = '<div class="suggestion-empty">Ã¡Æ’ÂÃ¡Æ’â€œÃ¡Æ’â€™Ã¡Æ’ËœÃ¡Æ’Å¡Ã¡Æ’Ëœ Ã¡Æ’â€¢Ã¡Æ’â€Ã¡Æ’Â  Ã¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’ËœÃ¡Æ’Â«Ã¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’Å“Ã¡Æ’Â.</div>';
   } else {
-    container.innerHTML = results.map((place, index) => `<button type="button" class="suggestion-item ${coordinates ? 'coordinate-item' : ''}" data-index="${index}"><span class="suggestion-pin">⌖</span><span><b>${escapeHtml(place.name)}</b>${coordinates ? '<small>კოორდინატების გამოყენება</small>' : `<small>${escapeHtml(place.address || 'USA')}</small>`}</span></button>`).join('');
+    container.innerHTML = results.map((place, index) => `<button type="button" class="suggestion-item ${coordinates ? 'coordinate-item' : ''}" data-index="${index}"><span class="suggestion-pin">Ã¢Å’â€“</span><span><b>${escapeHtml(place.name)}</b>${coordinates ? '<small>Ã¡Æ’â„¢Ã¡Æ’ÂÃ¡Æ’ÂÃ¡Æ’Â Ã¡Æ’â€œÃ¡Æ’ËœÃ¡Æ’Å“Ã¡Æ’ÂÃ¡Æ’Â¢Ã¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’ËœÃ¡Æ’Â¡ Ã¡Æ’â€™Ã¡Æ’ÂÃ¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’Â§Ã¡Æ’â€Ã¡Æ’Å“Ã¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’Â</small>' : `<small>${escapeHtml(place.address || 'USA')}</small>`}</span></button>`).join('');
     container.querySelectorAll('.suggestion-item').forEach(button => {
       button.addEventListener('mousedown', event => { event.preventDefault(); choose(results[Number(button.dataset.index)]); });
     });
@@ -211,14 +269,14 @@ async function chooseInput(value, index) {
   const coordinate = parseCoordinates(value);
   if (coordinate) return applyPlace(coordinate, index);
   if (!value.trim()) return;
-  setStatus('TomTom-ით ვეძებთ ადგილს…');
+  setStatus('TomTom-Ã¡Æ’ËœÃ¡Æ’â€” Ã¡Æ’â€¢Ã¡Æ’â€Ã¡Æ’Â«Ã¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’â€” Ã¡Æ’ÂÃ¡Æ’â€œÃ¡Æ’â€™Ã¡Æ’ËœÃ¡Æ’Å¡Ã¡Æ’Â¡Ã¢â‚¬Â¦');
   try {
     const results = await searchPlaces(value);
-    if (!results[0]) throw new Error('ადგილი ვერ მოიძებნა');
+    if (!results[0]) throw new Error('Ã¡Æ’ÂÃ¡Æ’â€œÃ¡Æ’â€™Ã¡Æ’ËœÃ¡Æ’Å¡Ã¡Æ’Ëœ Ã¡Æ’â€¢Ã¡Æ’â€Ã¡Æ’Â  Ã¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’ËœÃ¡Æ’Â«Ã¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’Å“Ã¡Æ’Â');
     applyPlace(results[0], index);
   } catch (error) {
     console.error(error);
-    setStatus('ადგილი ვერ მოიძებნა — სცადე უფრო სრული აშშ-ის მისამართი ან კოორდინატები.');
+    setStatus('Ã¡Æ’ÂÃ¡Æ’â€œÃ¡Æ’â€™Ã¡Æ’ËœÃ¡Æ’Å¡Ã¡Æ’Ëœ Ã¡Æ’â€¢Ã¡Æ’â€Ã¡Æ’Â  Ã¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’ËœÃ¡Æ’Â«Ã¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’Å“Ã¡Æ’Â Ã¢â‚¬â€ Ã¡Æ’Â¡Ã¡Æ’ÂªÃ¡Æ’ÂÃ¡Æ’â€œÃ¡Æ’â€ Ã¡Æ’Â£Ã¡Æ’Â¤Ã¡Æ’Â Ã¡Æ’Â Ã¡Æ’Â¡Ã¡Æ’Â Ã¡Æ’Â£Ã¡Æ’Å¡Ã¡Æ’Ëœ Ã¡Æ’ÂÃ¡Æ’Â¨Ã¡Æ’Â¨-Ã¡Æ’ËœÃ¡Æ’Â¡ Ã¡Æ’â€ºÃ¡Æ’ËœÃ¡Æ’Â¡Ã¡Æ’ÂÃ¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’Â Ã¡Æ’â€”Ã¡Æ’Ëœ Ã¡Æ’ÂÃ¡Æ’Å“ Ã¡Æ’â„¢Ã¡Æ’ÂÃ¡Æ’ÂÃ¡Æ’Â Ã¡Æ’â€œÃ¡Æ’ËœÃ¡Æ’Å“Ã¡Æ’ÂÃ¡Æ’Â¢Ã¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’Ëœ.');
   }
 }
 
@@ -259,12 +317,12 @@ function renderRouteMetrics() {
   const pauseSeconds = stops.slice(1).reduce((sum, stop) => sum + (Number(stop.delayMinutes) || 0) * 60, 0);
   document.getElementById('totalDistance').textContent = fmtDistance(distance);
   document.getElementById('totalDuration').textContent = fmtTime(movingSeconds + pauseSeconds);
-  document.getElementById('routeBadge').textContent = `${lastLegs.length} მონაკვეთი · ≤${activeVehicle().maxSpeedKph} კმ/სთ${pauseSeconds ? ` + ${Math.round(pauseSeconds / 60)} წთ` : ''}`;
+  document.getElementById('routeBadge').textContent = `${lastLegs.length} Ã¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’Å“Ã¡Æ’ÂÃ¡Æ’â„¢Ã¡Æ’â€¢Ã¡Æ’â€Ã¡Æ’â€”Ã¡Æ’Ëœ Ã‚Â· Ã¢â€°Â¤${activeVehicle().maxSpeedKph} Ã¡Æ’â„¢Ã¡Æ’â€º/Ã¡Æ’Â¡Ã¡Æ’â€”${pauseSeconds ? ` + ${Math.round(pauseSeconds / 60)} Ã¡Æ’Â¬Ã¡Æ’â€”` : ''}`;
   legsEl.innerHTML = lastLegs.map((leg, index) => {
     const pause = Number(stops[index + 1]?.delayMinutes) || 0;
     const summary = leg.summary || {};
     const trafficDelay = Number(summary.trafficDelayInSeconds) || 0;
-    return `<div class="leg"><span class="leg-number">${index + 1}</span><div class="leg-route"><b>${escapeHtml(stops[index]?.name)}</b>→ ${escapeHtml(stops[index + 1]?.name)}${pause ? `<small class="delay-note">შეყოვნება: ${pause} წთ</small>` : ''}</div><div class="leg-stats">${fmtDistance(summary.lengthInMeters || 0)}<small>${fmtTime(routeDuration(summary))}${trafficDelay ? ` · +${fmtTime(trafficDelay)}` : ''}${pause ? ` + ${pause} წთ` : ''}</small></div></div>`;
+    return `<div class="leg"><span class="leg-number">${index + 1}</span><div class="leg-route"><b>${escapeHtml(stops[index]?.name)}</b>Ã¢â€ â€™ ${escapeHtml(stops[index + 1]?.name)}${pause ? `<small class="delay-note">Ã¡Æ’Â¨Ã¡Æ’â€Ã¡Æ’Â§Ã¡Æ’ÂÃ¡Æ’â€¢Ã¡Æ’Å“Ã¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’Â: ${pause} Ã¡Æ’Â¬Ã¡Æ’â€”</small>` : ''}</div><div class="leg-stats">${fmtDistance(summary.lengthInMeters || 0)}<small>${fmtTime(routeDuration(summary))}${trafficDelay ? ` Ã‚Â· +${fmtTime(trafficDelay)}` : ''}${pause ? ` + ${pause} Ã¡Æ’Â¬Ã¡Æ’â€”` : ''}</small></div></div>`;
   }).join('');
 }
 
@@ -283,12 +341,18 @@ async function calculate() {
   if (vehicle.travelMode === 'truck') {
     params.set('vehicleMaxSpeed', String(vehicle.maxSpeedKph));
     params.set('vehicleCommercial', 'true');
+    const truckParameters = {
+      vehicleWeight: vehicle.weightKg, vehicleAxleWeight: vehicle.axleWeightKg,
+      vehicleNumberOfAxles: vehicle.axles, vehicleLength: vehicle.lengthM,
+      vehicleWidth: vehicle.widthM, vehicleHeight: vehicle.heightM
+    };
+    Object.entries(truckParameters).forEach(([name, value]) => { if (Number(value) > 0) params.set(name, String(value)); });
   }
-  setStatus('TomTom ითვლის მარშრუტს და ცოცხალ traffic-ს…');
+  setStatus('TomTom Ã¡Æ’ËœÃ¡Æ’â€”Ã¡Æ’â€¢Ã¡Æ’Å¡Ã¡Æ’ËœÃ¡Æ’Â¡ Ã¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’Â Ã¡Æ’Â¨Ã¡Æ’Â Ã¡Æ’Â£Ã¡Æ’Â¢Ã¡Æ’Â¡ Ã¡Æ’â€œÃ¡Æ’Â Ã¡Æ’ÂªÃ¡Æ’ÂÃ¡Æ’ÂªÃ¡Æ’Â®Ã¡Æ’ÂÃ¡Æ’Å¡ traffic-Ã¡Æ’Â¡Ã¢â‚¬Â¦');
   try {
     const response = await fetch(`https://api.tomtom.com/routing/1/calculateRoute/${locations}/json?${params}`);
     const data = await response.json();
-    if (!response.ok || !data.routes?.[0]) throw new Error(data?.detailedError?.message || data?.error?.description || 'მარშრუტი ვერ მოიძებნა');
+    if (!response.ok || !data.routes?.[0]) throw new Error(data?.detailedError?.message || data?.error?.description || 'Ã¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’Â Ã¡Æ’Â¨Ã¡Æ’Â Ã¡Æ’Â£Ã¡Æ’Â¢Ã¡Æ’Ëœ Ã¡Æ’â€¢Ã¡Æ’â€Ã¡Æ’Â  Ã¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’ËœÃ¡Æ’Â«Ã¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’Å“Ã¡Æ’Â');
     recordUsage('routing');
     const route = data.routes[0];
     lastLegs = route.legs || [];
@@ -296,10 +360,10 @@ async function calculate() {
     renderRouteMetrics();
     const bounds = L.latLngBounds(flattenRoutePoints(route));
     if (bounds.isValid()) map.fitBounds(bounds, { padding: [48, 48] });
-    setStatus('მარშრუტი მზადაა — წითელი მონაკვეთები საცობს, ყვითელი კი შენელებას აჩვენებს.');
+    setStatus('Ã¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’Â Ã¡Æ’Â¨Ã¡Æ’Â Ã¡Æ’Â£Ã¡Æ’Â¢Ã¡Æ’Ëœ Ã¡Æ’â€ºÃ¡Æ’â€“Ã¡Æ’ÂÃ¡Æ’â€œÃ¡Æ’ÂÃ¡Æ’Â Ã¢â‚¬â€ Ã¡Æ’Â¬Ã¡Æ’ËœÃ¡Æ’â€”Ã¡Æ’â€Ã¡Æ’Å¡Ã¡Æ’Ëœ Ã¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’Å“Ã¡Æ’ÂÃ¡Æ’â„¢Ã¡Æ’â€¢Ã¡Æ’â€Ã¡Æ’â€”Ã¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’Ëœ Ã¡Æ’Â¡Ã¡Æ’ÂÃ¡Æ’ÂªÃ¡Æ’ÂÃ¡Æ’â€˜Ã¡Æ’Â¡, Ã¡Æ’Â§Ã¡Æ’â€¢Ã¡Æ’ËœÃ¡Æ’â€”Ã¡Æ’â€Ã¡Æ’Å¡Ã¡Æ’Ëœ Ã¡Æ’â„¢Ã¡Æ’Ëœ Ã¡Æ’Â¨Ã¡Æ’â€Ã¡Æ’Å“Ã¡Æ’â€Ã¡Æ’Å¡Ã¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’ÂÃ¡Æ’Â¡ Ã¡Æ’ÂÃ¡Æ’Â©Ã¡Æ’â€¢Ã¡Æ’â€Ã¡Æ’Å“Ã¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’Â¡.');
   } catch (error) {
     console.error(error);
-    setStatus(`TomTom Routing შეცდომა: ${error.message || 'შეამოწმე API key და აქტიური სერვისები.'}`);
+    setStatus(`TomTom Routing Ã¡Æ’Â¨Ã¡Æ’â€Ã¡Æ’ÂªÃ¡Æ’â€œÃ¡Æ’ÂÃ¡Æ’â€ºÃ¡Æ’Â: ${error.message || 'Ã¡Æ’Â¨Ã¡Æ’â€Ã¡Æ’ÂÃ¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’Â¬Ã¡Æ’â€ºÃ¡Æ’â€ API key Ã¡Æ’â€œÃ¡Æ’Â Ã¡Æ’ÂÃ¡Æ’Â¥Ã¡Æ’Â¢Ã¡Æ’ËœÃ¡Æ’Â£Ã¡Æ’Â Ã¡Æ’Ëœ Ã¡Æ’Â¡Ã¡Æ’â€Ã¡Æ’Â Ã¡Æ’â€¢Ã¡Æ’ËœÃ¡Æ’Â¡Ã¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’Ëœ.'}`);
   }
 }
 
@@ -312,8 +376,8 @@ function initMap() {
   recordUsage('maps');
   map.on('click', event => {
     const index = stops.findIndex(stop => !Number.isFinite(stop.lat) || !Number.isFinite(stop.lng));
-    if (index === -1) return setStatus('ჯერ დაამატე ახალი ცარიელი გაჩერება, შემდეგ მონიშნე ის რუკაზე.');
-    applyPlace({ name: `მონიშნული წერტილი ${index + 1}`, lat: event.latlng.lat, lng: event.latlng.lng }, index);
+    if (index === -1) return setStatus('Ã¡Æ’Â¯Ã¡Æ’â€Ã¡Æ’Â  Ã¡Æ’â€œÃ¡Æ’ÂÃ¡Æ’ÂÃ¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’Â¢Ã¡Æ’â€ Ã¡Æ’ÂÃ¡Æ’Â®Ã¡Æ’ÂÃ¡Æ’Å¡Ã¡Æ’Ëœ Ã¡Æ’ÂªÃ¡Æ’ÂÃ¡Æ’Â Ã¡Æ’ËœÃ¡Æ’â€Ã¡Æ’Å¡Ã¡Æ’Ëœ Ã¡Æ’â€™Ã¡Æ’ÂÃ¡Æ’Â©Ã¡Æ’â€Ã¡Æ’Â Ã¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’Â, Ã¡Æ’Â¨Ã¡Æ’â€Ã¡Æ’â€ºÃ¡Æ’â€œÃ¡Æ’â€Ã¡Æ’â€™ Ã¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’Å“Ã¡Æ’ËœÃ¡Æ’Â¨Ã¡Æ’Å“Ã¡Æ’â€ Ã¡Æ’ËœÃ¡Æ’Â¡ Ã¡Æ’Â Ã¡Æ’Â£Ã¡Æ’â„¢Ã¡Æ’ÂÃ¡Æ’â€“Ã¡Æ’â€.');
+    applyPlace({ name: `Ã¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’Å“Ã¡Æ’ËœÃ¡Æ’Â¨Ã¡Æ’Å“Ã¡Æ’Â£Ã¡Æ’Å¡Ã¡Æ’Ëœ Ã¡Æ’Â¬Ã¡Æ’â€Ã¡Æ’Â Ã¡Æ’Â¢Ã¡Æ’ËœÃ¡Æ’Å¡Ã¡Æ’Ëœ ${index + 1}`, lat: event.latlng.lat, lng: event.latlng.lng }, index);
   });
   renderStops();
   renderMarkers();
@@ -328,24 +392,31 @@ document.getElementById('addStop').onclick = () => {
 document.getElementById('buildRoute').onclick = calculate;
 document.querySelectorAll('.mode').forEach(button => {
   button.onclick = () => {
-    document.querySelector('.mode.active')?.classList.remove('active');
-    button.classList.add('active');
-    vehicleProfile = button.dataset.profile;
-    renderVehicleNote();
-    calculate();
+    document.querySelector('.mode.active')?.classList.remove('active'); button.classList.add('active');
+    vehicleProfile = button.dataset.profile; renderVehicleNote(); renderTruckControls();
+    if (vehicleProfile === 'truck') openTruckModal(); else calculate();
   };
 });
+document.getElementById('activeTruckCard').onclick = openTruckModal;
+document.getElementById('closeTruckModal').onclick = closeTruckModal;
+document.querySelector('[data-close-truck-modal]').onclick = closeTruckModal;
+document.getElementById('truckForm').addEventListener('submit', saveTruckProfile);
+document.getElementById('truckSelector').addEventListener('change', event => selectTruck(event.target.value));
+document.getElementById('newTruckProfile').onclick = () => fillTruckForm(DEFAULT_TRUCK, false);
+document.getElementById('deleteTruckProfile').onclick = deleteSelectedTruck;
+
 document.getElementById('locate').onclick = () => {
-  if (!navigator.geolocation) return setStatus('ბრაუზერი მდებარეობას არ უჭერს მხარს.');
-  navigator.geolocation.getCurrentPosition(({ coords }) => map?.panTo([coords.latitude, coords.longitude]), () => setStatus('მდებარეობის წაკითხვა ვერ მოხერხდა.'));
+  if (!navigator.geolocation) return setStatus('Ã¡Æ’â€˜Ã¡Æ’Â Ã¡Æ’ÂÃ¡Æ’Â£Ã¡Æ’â€“Ã¡Æ’â€Ã¡Æ’Â Ã¡Æ’Ëœ Ã¡Æ’â€ºÃ¡Æ’â€œÃ¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’ÂÃ¡Æ’Â Ã¡Æ’â€Ã¡Æ’ÂÃ¡Æ’â€˜Ã¡Æ’ÂÃ¡Æ’Â¡ Ã¡Æ’ÂÃ¡Æ’Â  Ã¡Æ’Â£Ã¡Æ’Â­Ã¡Æ’â€Ã¡Æ’Â Ã¡Æ’Â¡ Ã¡Æ’â€ºÃ¡Æ’Â®Ã¡Æ’ÂÃ¡Æ’Â Ã¡Æ’Â¡.');
+  navigator.geolocation.getCurrentPosition(({ coords }) => map?.panTo([coords.latitude, coords.longitude]), () => setStatus('Ã¡Æ’â€ºÃ¡Æ’â€œÃ¡Æ’â€Ã¡Æ’â€˜Ã¡Æ’ÂÃ¡Æ’Â Ã¡Æ’â€Ã¡Æ’ÂÃ¡Æ’â€˜Ã¡Æ’ËœÃ¡Æ’Â¡ Ã¡Æ’Â¬Ã¡Æ’ÂÃ¡Æ’â„¢Ã¡Æ’ËœÃ¡Æ’â€”Ã¡Æ’Â®Ã¡Æ’â€¢Ã¡Æ’Â Ã¡Æ’â€¢Ã¡Æ’â€Ã¡Æ’Â  Ã¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’Â®Ã¡Æ’â€Ã¡Æ’Â Ã¡Æ’Â®Ã¡Æ’â€œÃ¡Æ’Â.'));
 };
 
 renderUsage();
 renderVehicleNote();
+renderTruckControls();
 if (!apiKey || apiKey === 'YOUR_TOMTOM_API_KEY') {
-  setStatus('TomTom-ის ჩასართავად ჩაწერე API key ფაილში maps-config.js.');
+  setStatus('TomTom-Ã¡Æ’ËœÃ¡Æ’Â¡ Ã¡Æ’Â©Ã¡Æ’ÂÃ¡Æ’Â¡Ã¡Æ’ÂÃ¡Æ’Â Ã¡Æ’â€”Ã¡Æ’ÂÃ¡Æ’â€¢Ã¡Æ’ÂÃ¡Æ’â€œ Ã¡Æ’Â©Ã¡Æ’ÂÃ¡Æ’Â¬Ã¡Æ’â€Ã¡Æ’Â Ã¡Æ’â€ API key Ã¡Æ’Â¤Ã¡Æ’ÂÃ¡Æ’ËœÃ¡Æ’Å¡Ã¡Æ’Â¨Ã¡Æ’Ëœ maps-config.js.');
 } else if (!window.L) {
-  setStatus('რუკის ბიბლიოთეკა ვერ ჩაიტვირთა. შეამოწმე ინტერნეტთან კავშირი.');
+  setStatus('Ã¡Æ’Â Ã¡Æ’Â£Ã¡Æ’â„¢Ã¡Æ’ËœÃ¡Æ’Â¡ Ã¡Æ’â€˜Ã¡Æ’ËœÃ¡Æ’â€˜Ã¡Æ’Å¡Ã¡Æ’ËœÃ¡Æ’ÂÃ¡Æ’â€”Ã¡Æ’â€Ã¡Æ’â„¢Ã¡Æ’Â Ã¡Æ’â€¢Ã¡Æ’â€Ã¡Æ’Â  Ã¡Æ’Â©Ã¡Æ’ÂÃ¡Æ’ËœÃ¡Æ’Â¢Ã¡Æ’â€¢Ã¡Æ’ËœÃ¡Æ’Â Ã¡Æ’â€”Ã¡Æ’Â. Ã¡Æ’Â¨Ã¡Æ’â€Ã¡Æ’ÂÃ¡Æ’â€ºÃ¡Æ’ÂÃ¡Æ’Â¬Ã¡Æ’â€ºÃ¡Æ’â€ Ã¡Æ’ËœÃ¡Æ’Å“Ã¡Æ’Â¢Ã¡Æ’â€Ã¡Æ’Â Ã¡Æ’Å“Ã¡Æ’â€Ã¡Æ’Â¢Ã¡Æ’â€”Ã¡Æ’ÂÃ¡Æ’Å“ Ã¡Æ’â„¢Ã¡Æ’ÂÃ¡Æ’â€¢Ã¡Æ’Â¨Ã¡Æ’ËœÃ¡Æ’Â Ã¡Æ’Ëœ.');
 } else {
   initMap();
 }

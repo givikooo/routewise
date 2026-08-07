@@ -3,68 +3,95 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Routewise — მარშრუტის დამგეგმავი</title>
+    <title>Routewise â€” áƒ›áƒáƒ áƒ¨áƒ áƒ£áƒ¢áƒ˜áƒ¡ áƒ“áƒáƒ›áƒ’áƒ”áƒ’áƒ›áƒáƒ•áƒ˜</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <main class="app-shell">
       <aside class="sidebar">
-        <div class="brand"><span class="brand-mark">↗</span><span>routewise</span></div>
+        <div class="brand"><span class="brand-mark">â†—</span><span>routewise</span></div>
         <section class="usage-card" aria-label="TomTom API usage">
-          <div class="usage-title"><span>TomTom API usage</span><small>ამ ბრაუზერის შეფასება</small></div>
+          <div class="usage-title"><span>TomTom API usage</span><small>áƒáƒ› áƒ‘áƒ áƒáƒ£áƒ–áƒ”áƒ áƒ˜áƒ¡ áƒ¨áƒ”áƒ¤áƒáƒ¡áƒ”áƒ‘áƒ</small></div>
           <div id="usageMetrics"></div>
         </section>
 
         <div class="sidebar-head">
-          <p class="eyebrow">ახალი მარშრუტი</p>
-          <h1>გეგმავს გზას<br />შენთან ერთად.</h1>
-          <p class="intro">დაამატე გაჩერებები და მიიღე თითოეული მონაკვეთის ზუსტი დრო, მანძილი და შერჩეული გზის traffic.</p>
+          <p class="eyebrow">áƒáƒ®áƒáƒšáƒ˜ áƒ›áƒáƒ áƒ¨áƒ áƒ£áƒ¢áƒ˜</p>
+          <h1>áƒ’áƒ”áƒ’áƒ›áƒáƒ•áƒ¡ áƒ’áƒ–áƒáƒ¡<br />áƒ¨áƒ”áƒœáƒ—áƒáƒœ áƒ”áƒ áƒ—áƒáƒ“.</h1>
+          <p class="intro">áƒ“áƒáƒáƒ›áƒáƒ¢áƒ” áƒ’áƒáƒ©áƒ”áƒ áƒ”áƒ‘áƒ”áƒ‘áƒ˜ áƒ“áƒ áƒ›áƒ˜áƒ˜áƒ¦áƒ” áƒ—áƒ˜áƒ—áƒáƒ”áƒ£áƒšáƒ˜ áƒ›áƒáƒœáƒáƒ™áƒ•áƒ”áƒ—áƒ˜áƒ¡ áƒ–áƒ£áƒ¡áƒ¢áƒ˜ áƒ“áƒ áƒ, áƒ›áƒáƒœáƒ«áƒ˜áƒšáƒ˜ áƒ“áƒ áƒ¨áƒ”áƒ áƒ©áƒ”áƒ£áƒšáƒ˜ áƒ’áƒ–áƒ˜áƒ¡ traffic.</p>
         </div>
 
-        <div class="transport" aria-label="ტრანსპორტის ტიპი">
-          <button class="mode active" data-profile="truck" title="სატვირთო">🚚 <span>Truck</span></button>
-          <button class="mode" data-profile="heavy-b" title="მძიმე B კატეგორია">🚐 <span>მძიმე B</span></button>
+        <div class="transport" aria-label="áƒ¢áƒ áƒáƒœáƒ¡áƒžáƒáƒ áƒ¢áƒ˜áƒ¡ áƒ¢áƒ˜áƒžáƒ˜">
+          <button class="mode active" data-profile="truck" title="áƒ¡áƒáƒ¢áƒ•áƒ˜áƒ áƒ—áƒ">ðŸšš <span>Truck</span></button>
+          <button class="mode" data-profile="heavy-b" title="áƒ›áƒ«áƒ˜áƒ›áƒ” B áƒ™áƒáƒ¢áƒ”áƒ’áƒáƒ áƒ˜áƒ">ðŸš <span>áƒ›áƒ«áƒ˜áƒ›áƒ” B</span></button>
         </div>
         <p id="vehicleNote" class="vehicle-note"></p>
+        <button id="activeTruckCard" class="active-truck-card" type="button" hidden></button>
 
         <section class="route-panel">
-          <div class="route-panel-title"><span>გაჩერებები</span><span id="stopCount">3 წერტილი</span></div>
+          <div class="route-panel-title"><span>áƒ’áƒáƒ©áƒ”áƒ áƒ”áƒ‘áƒ”áƒ‘áƒ˜</span><span id="stopCount">3 áƒ¬áƒ”áƒ áƒ¢áƒ˜áƒšáƒ˜</span></div>
           <div id="stops" class="stops"></div>
-          <button id="addStop" class="add-stop"><span>＋</span> გაჩერების დამატება</button>
-          <button id="buildRoute" class="primary">მარშრუტის გამოთვლა <span>→</span></button>
-          <p id="status" class="status">მისამართის შეყვანისას აირჩიე TomTom-ის შემოთავაზება, ან ჩაწერე კოორდინატები.</p>
+          <button id="addStop" class="add-stop"><span>ï¼‹</span> áƒ’áƒáƒ©áƒ”áƒ áƒ”áƒ‘áƒ˜áƒ¡ áƒ“áƒáƒ›áƒáƒ¢áƒ”áƒ‘áƒ</button>
+          <button id="buildRoute" class="primary">áƒ›áƒáƒ áƒ¨áƒ áƒ£áƒ¢áƒ˜áƒ¡ áƒ’áƒáƒ›áƒáƒ—áƒ•áƒšáƒ <span>â†’</span></button>
+          <p id="status" class="status">áƒ›áƒ˜áƒ¡áƒáƒ›áƒáƒ áƒ—áƒ˜áƒ¡ áƒ¨áƒ”áƒ§áƒ•áƒáƒœáƒ˜áƒ¡áƒáƒ¡ áƒáƒ˜áƒ áƒ©áƒ˜áƒ” TomTom-áƒ˜áƒ¡ áƒ¨áƒ”áƒ›áƒáƒ—áƒáƒ•áƒáƒ–áƒ”áƒ‘áƒ, áƒáƒœ áƒ©áƒáƒ¬áƒ”áƒ áƒ” áƒ™áƒáƒáƒ áƒ“áƒ˜áƒœáƒáƒ¢áƒ”áƒ‘áƒ˜.</p>
         </section>
 
         <section class="summary" id="summary">
-          <div><span>საერთო მანძილი</span><strong id="totalDistance">—</strong></div>
-          <div><span>საერთო დრო</span><strong id="totalDuration">—</strong></div>
+          <div><span>áƒ¡áƒáƒ”áƒ áƒ—áƒ áƒ›áƒáƒœáƒ«áƒ˜áƒšáƒ˜</span><strong id="totalDistance">â€”</strong></div>
+          <div><span>áƒ¡áƒáƒ”áƒ áƒ—áƒ áƒ“áƒ áƒ</span><strong id="totalDuration">â€”</strong></div>
         </section>
       </aside>
 
       <section class="map-area">
         <div id="map"></div>
         <div class="map-topbar">
-          <div class="live-dot"></div><span>TomTom რუკა</span>
-          <span class="tip">დააწკაპე რუკაზე ცარიელი გაჩერების შესავსებად</span>
+          <div class="live-dot"></div><span>TomTom áƒ áƒ£áƒ™áƒ</span>
+          <span class="tip">áƒ“áƒáƒáƒ¬áƒ™áƒáƒžáƒ” áƒ áƒ£áƒ™áƒáƒ–áƒ” áƒªáƒáƒ áƒ˜áƒ”áƒšáƒ˜ áƒ’áƒáƒ©áƒ”áƒ áƒ”áƒ‘áƒ˜áƒ¡ áƒ¨áƒ”áƒ¡áƒáƒ•áƒ¡áƒ”áƒ‘áƒáƒ“</span>
         </div>
-        <button id="locate" class="locate" title="ჩემი მდებარეობა">◎</button>
-        <div id="trafficLegend" class="traffic-legend"><span><i class="traffic-red"></i>საცობი</span><span><i class="traffic-yellow"></i>შენელება</span><span><i class="traffic-green"></i>თავისუფალი</span></div>
+        <button id="locate" class="locate" title="áƒ©áƒ”áƒ›áƒ˜ áƒ›áƒ“áƒ”áƒ‘áƒáƒ áƒ”áƒáƒ‘áƒ">â—Ž</button>
+        <div id="trafficLegend" class="traffic-legend"><span><i class="traffic-red"></i>áƒ¡áƒáƒªáƒáƒ‘áƒ˜</span><span><i class="traffic-yellow"></i>áƒ¨áƒ”áƒœáƒ”áƒšáƒ”áƒ‘áƒ</span><span><i class="traffic-green"></i>áƒ—áƒáƒ•áƒ˜áƒ¡áƒ£áƒ¤áƒáƒšáƒ˜</span></div>
         <div class="legs-card" id="legsCard">
-          <div class="legs-heading"><div><p class="eyebrow">მარშრუტის დეტალები</p><h2>მონაკვეთები</h2></div><span id="routeBadge">ჯერ არ არის დათვლილი</span></div>
-          <div id="legs" class="legs"><div class="empty-legs">დაამატე მინიმუმ ორი წერტილი, რომ ნახო დეტალები.</div></div>
+          <div class="legs-heading"><div><p class="eyebrow">áƒ›áƒáƒ áƒ¨áƒ áƒ£áƒ¢áƒ˜áƒ¡ áƒ“áƒ”áƒ¢áƒáƒšáƒ”áƒ‘áƒ˜</p><h2>áƒ›áƒáƒœáƒáƒ™áƒ•áƒ”áƒ—áƒ”áƒ‘áƒ˜</h2></div><span id="routeBadge">áƒ¯áƒ”áƒ  áƒáƒ  áƒáƒ áƒ˜áƒ¡ áƒ“áƒáƒ—áƒ•áƒšáƒ˜áƒšáƒ˜</span></div>
+          <div id="legs" class="legs"><div class="empty-legs">áƒ“áƒáƒáƒ›áƒáƒ¢áƒ” áƒ›áƒ˜áƒœáƒ˜áƒ›áƒ£áƒ› áƒáƒ áƒ˜ áƒ¬áƒ”áƒ áƒ¢áƒ˜áƒšáƒ˜, áƒ áƒáƒ› áƒœáƒáƒ®áƒ áƒ“áƒ”áƒ¢áƒáƒšáƒ”áƒ‘áƒ˜.</div></div>
         </div>
       </section>
     </main>
 
+    <div id="truckModal" class="truck-modal" hidden aria-hidden="true">
+      <div class="truck-modal-backdrop" data-close-truck-modal></div>
+      <section class="truck-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="truckModalTitle">
+        <div class="truck-modal-header">
+          <div><p class="eyebrow">Truck პროფილები</p><h2 id="truckModalTitle">შეინახე სატვირთო</h2></div>
+          <button id="closeTruckModal" class="modal-close" type="button" aria-label="დახურვა">×</button>
+        </div>
+        <p class="truck-modal-intro">ამ მონაცემებით TomTom ითვალისწინებს სატვირთოს სიჩქარესა და გზის ზომით/წონით შეზღუდვებს.</p>
+        <div class="saved-truck-picker">
+          <label for="truckSelector">არჩეული სატვირთო</label>
+          <div><select id="truckSelector"></select><button id="newTruckProfile" type="button">ახალი</button><button id="deleteTruckProfile" type="button" title="არჩეული პროფილის წაშლა">წაშლა</button></div>
+        </div>
+        <form id="truckForm" class="truck-form">
+          <label class="truck-field wide">პროფილის სახელი<input name="name" type="text" maxlength="40" placeholder="მაგ: Volvo FH 2022" required /></label>
+          <label class="truck-field">მაქს. სიჩქარე, კმ/სთ<input name="maxSpeedKph" type="number" min="1" max="250" value="80" required /></label>
+          <label class="truck-field">წონა, კგ<input name="weightKg" type="number" min="0" step="50" placeholder="18000" /></label>
+          <label class="truck-field">ღერძზე წონა, კგ<input name="axleWeightKg" type="number" min="0" step="50" placeholder="9000" /></label>
+          <label class="truck-field">ღერძების რაოდენობა<input name="axles" type="number" min="0" max="12" step="1" placeholder="3" /></label>
+          <label class="truck-field">სიგრძე, მეტრი<input name="lengthM" type="number" min="0" step="0.01" placeholder="16.50" /></label>
+          <label class="truck-field">სიგანე, მეტრი<input name="widthM" type="number" min="0" step="0.01" placeholder="2.55" /></label>
+          <label class="truck-field">სიმაღლე, მეტრი<input name="heightM" type="number" min="0" step="0.01" placeholder="4.00" /></label>
+          <p class="truck-form-note wide">ცარიელი ველები TomTom-ს არ ეგზავნება. სრულად შევსებული პროფილი route-ის შეზღუდვებს უფრო ზუსტად ითვალისწინებს.</p>
+          <button class="primary wide" type="submit">პროფილის შენახვა და გამოყენება <span>→</span></button>
+        </form>
+      </section>
+    </div>
     <template id="stopTemplate">
       <div class="stop-row">
-        <span class="drag">⠿</span><span class="stop-index"></span>
+        <span class="drag">â ¿</span><span class="stop-index"></span>
         <div class="input-wrap">
-          <input class="stop-input" type="text" placeholder="ჩაწერე აშშ-ის მისამართი ან კოორდინატები" autocomplete="off" />
+          <input class="stop-input" type="text" placeholder="áƒ©áƒáƒ¬áƒ”áƒ áƒ” áƒáƒ¨áƒ¨-áƒ˜áƒ¡ áƒ›áƒ˜áƒ¡áƒáƒ›áƒáƒ áƒ—áƒ˜ áƒáƒœ áƒ™áƒáƒáƒ áƒ“áƒ˜áƒœáƒáƒ¢áƒ”áƒ‘áƒ˜" autocomplete="off" />
           <div class="suggestions" role="listbox"></div>
         </div>
-        <button class="remove-stop" title="წაშლა">×</button>
+        <button class="remove-stop" title="áƒ¬áƒáƒ¨áƒšáƒ">Ã—</button>
       </div>
     </template>
 
