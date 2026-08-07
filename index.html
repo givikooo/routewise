@@ -4,37 +4,36 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Routewise — მარშრუტის დამგეგმავი</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+Georgian:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <main class="app-shell">
       <aside class="sidebar">
         <div class="brand"><span class="brand-mark">↗</span><span>routewise</span></div>
-        <section class="usage-card" aria-label="API usage">
-          <div class="usage-title"><span>API usage</span><small>ამ ბრაუზერის შეფასება</small></div>
+        <section class="usage-card" aria-label="TomTom API usage">
+          <div class="usage-title"><span>TomTom API usage</span><small>ამ ბრაუზერის შეფასება</small></div>
           <div id="usageMetrics"></div>
         </section>
+
         <div class="sidebar-head">
           <p class="eyebrow">ახალი მარშრუტი</p>
           <h1>გეგმავს გზას<br />შენთან ერთად.</h1>
-          <p class="intro">დაამატე გაჩერებები და მიიღე თითოეული მონაკვეთის ზუსტი დრო და მანძილი.</p>
+          <p class="intro">დაამატე გაჩერებები და მიიღე თითოეული მონაკვეთის ზუსტი დრო, მანძილი და შერჩეული გზის traffic.</p>
         </div>
 
         <div class="transport" aria-label="ტრანსპორტის ტიპი">
           <button class="mode active" data-profile="truck" title="სატვირთო">🚚 <span>Truck</span></button>
           <button class="mode" data-profile="heavy-b" title="მძიმე B კატეგორია">🚐 <span>მძიმე B</span></button>
         </div>
-        <p id="vehicleNote" class="vehicle-note">Truck · მაქს. 80 კმ/სთ</p>
+        <p id="vehicleNote" class="vehicle-note"></p>
 
         <section class="route-panel">
           <div class="route-panel-title"><span>გაჩერებები</span><span id="stopCount">3 წერტილი</span></div>
           <div id="stops" class="stops"></div>
           <button id="addStop" class="add-stop"><span>＋</span> გაჩერების დამატება</button>
           <button id="buildRoute" class="primary">მარშრუტის გამოთვლა <span>→</span></button>
-          <p id="status" class="status">მისამართის შესაყვანად გამოიყენე ძიება ან მონიშნე რუკა.</p>
+          <p id="status" class="status">მისამართის შეყვანისას აირჩიე TomTom-ის შემოთავაზება, ან ჩაწერე კოორდინატები.</p>
         </section>
 
         <section class="summary" id="summary">
@@ -46,8 +45,8 @@
       <section class="map-area">
         <div id="map"></div>
         <div class="map-topbar">
-          <div class="live-dot"></div><span>ინტერაქტიული რუკა</span>
-          <span class="tip">დააწკაპე რუკაზე წერტილის დასამატებლად</span>
+          <div class="live-dot"></div><span>TomTom რუკა</span>
+          <span class="tip">დააწკაპე რუკაზე ცარიელი გაჩერების შესავსებად</span>
         </div>
         <button id="locate" class="locate" title="ჩემი მდებარეობა">◎</button>
         <div id="trafficLegend" class="traffic-legend"><span><i class="traffic-red"></i>საცობი</span><span><i class="traffic-yellow"></i>შენელება</span><span><i class="traffic-green"></i>თავისუფალი</span></div>
@@ -57,13 +56,19 @@
         </div>
       </section>
     </main>
+
     <template id="stopTemplate">
       <div class="stop-row">
         <span class="drag">⠿</span><span class="stop-index"></span>
-        <input class="stop-input" type="text" placeholder="ჩაწერე მისამართი ან კოორდინატები" autocomplete="off" />
+        <div class="input-wrap">
+          <input class="stop-input" type="text" placeholder="ჩაწერე აშშ-ის მისამართი ან კოორდინატები" autocomplete="off" />
+          <div class="suggestions" role="listbox"></div>
+        </div>
         <button class="remove-stop" title="წაშლა">×</button>
       </div>
     </template>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="maps-config.js"></script>
     <script src="app.js"></script>
   </body>

@@ -20,14 +20,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Create Google Maps runtime config
+      - name: Create TomTom runtime config
         env:
-          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
         run: |
-          test -n "$GOOGLE_MAPS_API_KEY"
-          printf "%s\n" "// Generated during deployment. Do not commit this file." "window.ROUTEWISE_GOOGLE_MAPS_API_KEY = '$GOOGLE_MAPS_API_KEY';" > maps-config.js
-
+          test -n "$TOMTOM_API_KEY"
+          printf "%s\n" "// Generated during deployment. Do not commit this file." "window.ROUTEWISE_TOMTOM_API_KEY = '$TOMTOM_API_KEY';" > maps-config.js
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
