@@ -361,12 +361,12 @@ async function calculate() {
     sectionType: 'traffic'
   });
   if (vehicle.travelMode === 'truck') {
-    params.set('vehicleMaxSpeed', String(vehicle.maxSpeedKph));
+    params.set('vehicleMaxSpeed', String(Math.round(vehicle.maxSpeedKph)));
     params.set('vehicleCommercial', 'true');
     const truckParameters = {
-      vehicleWeight: vehicle.weightKg, vehicleAxleWeight: vehicle.axleWeightKg,
-      vehicleNumberOfAxles: vehicle.axles, vehicleLength: vehicle.lengthM,
-      vehicleWidth: vehicle.widthM, vehicleHeight: vehicle.heightM
+      vehicleWeight: Math.round(vehicle.weightKg), vehicleAxleWeight: Math.round(vehicle.axleWeightKg),
+      vehicleNumberOfAxles: Math.round(vehicle.axles), vehicleLength: Number(vehicle.lengthM.toFixed(2)),
+      vehicleWidth: Number(vehicle.widthM.toFixed(2)), vehicleHeight: Number(vehicle.heightM.toFixed(2))
     };
     Object.entries(truckParameters).forEach(([name, value]) => { if (Number(value) > 0) params.set(name, String(value)); });
   }
