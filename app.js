@@ -13,7 +13,9 @@ const usageLabels = { maps: 'რუკა', search: 'ძიება', routing: 
 const DEFAULT_TRUCK = {
   id: 'default', name: 'საბაზისო Truck', maxSpeedKph: 80,
   weightKg: 0, axleWeightKg: 0, axles: 0, lengthM: 0, widthM: 0, heightM: 0,
-  travelMode: 'truck'
+  travelMode: 'truck',
+  loadTypes: [],
+  adrCode: ''
 };
 const vehicleProfiles = {
   'heavy-b': { label: 'მძიმე B', maxSpeedKph: 90, travelMode: 'car' }
@@ -27,6 +29,9 @@ let markers = [];
 let routeLines = [];
 let lastLegs = [];
 let calculateTimer;
+let selectedRoute = null;
+let lastRoutes = [];
+let routeStopSuggestions = [];
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const fmtDistance = meters => { const miles = Number(meters || 0) / 1609.344; return `${miles.toFixed(miles >= 100 ? 0 : 1)} mi`; };
@@ -55,6 +60,55 @@ function truckSummary(truck) {
   return details.join(' / ') || `Max. ${Math.round(kphToMph(truck.maxSpeedKph))} mph`;
 }
 const routeDuration = summary => Math.max(Number(summary?.travelTimeInSeconds) || 0, (Number(summary?.lengthInMeters) || 0) / (activeVehicle().maxSpeedKph / 3.6));
+
+
+function getHosSettings() {
+  return {
+    startTime: document.getElementById('hosStartTime')?.value || '08:00',
+    drivenHours: numberOrZero(document.getElementById('hosDrivenHours')?.value),
+    breakAfterHours: Math.max(1, numberOrZero(document.getElementById('hosBreakAfter')?.value) || 8),
+    breakMinutes: Math.max(1, numberOrZero(document.getElementById('hosBreakMinutes')?.value) || 30),
+    dailyLimitHours: Math.max(1, numberOrZero(document.getElementById('hosDailyLimit')?.value) || 11)
+  };
+}
+function saveHosSettings() {
+  const settings = getHosSettings();
+  localStorage.setItem('routewise-hos-settings', JSON.stringify(settings));
+  return settings;
+}
+function loadHosSettings() {
+  try {
+    const settings = JSON.parse(localStorage.getItem('routewise-hos-settings') || '{}');
+    const fields = { StartTime: 'startTime', DrivenHours: 'drivenHours', BreakAfter: 'breakAfterHours', BreakMinutes: 'breakMinutes', DailyLimit: 'dailyLimitHours' };
+    Object.entries(fields).forEach(([key, property]) => {
+      const field = document.getElementById(`hos${key}`);
+      const value = settings[property];
+      if (field && value !== undefined && value !== null && value !== '') field.value = value;
+    });
+  } catch {}
+}
+function calculateHosPlan() {
+  const settings = getHosSettings();
+  const breakAfterSeconds = settings.breakAfterHours * 3600;
+  const breakSeconds = settings.breakMinutes * 60;
+  let drivingSinceBreak = settings.drivenHours * 3600;
+  let breaks = 0;
+  for (let index = 0; index < lastLegs.length; index += 1) {
+    let remaining = routeDuration(lastLegs[index].summary);
+    while (drivingSinceBreak + remaining > breakAfterSeconds) {
+      const untilBreak = Math.max(0, breakAfterSeconds - drivingSinceBreak);
+      remaining -= untilBreak;
+      breaks += 1;
+      drivingSinceBreak = 0;
+    }
+    drivingSinceBreak += remaining;
+    const stopPause = Number(stops[index + 1]?.delayMinutes) || 0;
+    if (stopPause * 60 >= breakSeconds) drivingSinceBreak = 0;
+  }
+  const drivingSeconds = lastLegs.reduce((sum, leg) => sum + routeDuration(leg.summary), 0);
+  const exceedsDailyLimit = settings.drivenHours * 3600 + drivingSeconds > settings.dailyLimitHours * 3600;
+  return { ...settings, breaks, breakSeconds, addedRestSeconds: breaks * breakSeconds, exceedsDailyLimit };
+}
 
 function getUsage() {
   const month = new Date().toISOString().slice(0, 7);
@@ -116,6 +170,8 @@ function fillTruckForm(truck = null) {
   form.elements.lengthFt.value = truck?.lengthM ? metersToFeet(truck.lengthM).toFixed(1) : '';
   form.elements.widthFt.value = truck?.widthM ? metersToFeet(truck.widthM).toFixed(1) : '';
   form.elements.heightFt.value = truck?.heightM ? metersToFeet(truck.heightM).toFixed(1) : '';
+  document.querySelectorAll('[name="hazmat"]').forEach(input => { input.checked = Boolean(truck?.loadTypes?.includes(input.value)); });
+  form.elements.adrCode.value = truck?.adrCode || '';
 }
 function showTruckLibrary() {
   document.getElementById('truckEditorView').hidden = true;
@@ -141,7 +197,8 @@ function saveTruckProfile(event) {
     id: form.dataset.editId || (crypto.randomUUID ? crypto.randomUUID() : `truck-${Date.now()}`), name: form.elements.name.value.trim(),
     maxSpeedKph: Math.min(250, Math.max(1, mphToKph(numberOrZero(form.elements.maxSpeedMph.value) || 50))),
     weightKg: lbToKg(numberOrZero(form.elements.weightLb.value)), axleWeightKg: lbToKg(numberOrZero(form.elements.axleWeightLb.value)), axles: numberOrZero(form.elements.axles.value),
-    lengthM: feetToMeters(numberOrZero(form.elements.lengthFt.value)), widthM: feetToMeters(numberOrZero(form.elements.widthFt.value)), heightM: feetToMeters(numberOrZero(form.elements.heightFt.value)), travelMode: 'truck'
+    lengthM: feetToMeters(numberOrZero(form.elements.lengthFt.value)), widthM: feetToMeters(numberOrZero(form.elements.widthFt.value)), heightM: feetToMeters(numberOrZero(form.elements.heightFt.value)),
+    loadTypes: Array.from(form.querySelectorAll('[name="hazmat"]:checked')).map(input => input.value), adrCode: form.elements.adrCode.value, travelMode: 'truck'
   };
   if (!profile.name) return;
   const currentIndex = truckProfiles.findIndex(truck => truck.id === profile.id);
@@ -332,20 +389,100 @@ function renderTrafficRoute(route) {
   document.getElementById('trafficLegend').classList.add('visible');
 }
 
+function getTollInfo(route) {
+  const tollSections = (route?.sections || []).filter(section => section.sectionType === 'TOLL');
+  const paymentTypes = [...new Set(tollSections.flatMap(section => section.tollPaymentTypes || []))];
+  return { count: tollSections.length, paymentTypes };
+}
+function renderRouteInsights() {
+  const panel = document.getElementById('routeInsights');
+  if (!selectedRoute) { panel.hidden = true; return; }
+  panel.hidden = false;
+  document.getElementById('alternativeRoutes').innerHTML = lastRoutes.map((route, index) => {
+    const summary = route.summary || {};
+    const tolls = getTollInfo(route);
+    return `<button class="alternative-route ${index === lastRoutes.indexOf(selectedRoute) ? 'active' : ''}" type="button" data-route-index="${index}"><b>${index === 0 ? 'Best route' : `Alternative ${index}`}</b><span>${fmtDistance(summary.lengthInMeters || 0)} - ${fmtTime(routeDuration(summary))}</span><small>${summary.trafficDelayInSeconds ? `Traffic +${fmtTime(summary.trafficDelayInSeconds)}` : 'Traffic normal'}${tolls.count ? ` - Tolls ${tolls.count}` : ''}</small></button>`;
+  }).join('');
+  document.querySelectorAll('[data-route-index]').forEach(button => { button.onclick = () => applyRoute(lastRoutes[Number(button.dataset.routeIndex)]); });
+  const tolls = getTollInfo(selectedRoute);
+  document.getElementById('tollInfo').innerHTML = tolls.count
+    ? `<b>Tolls detected</b><span>${tolls.count} toll section${tolls.count > 1 ? 's' : ''}${tolls.paymentTypes.length ? ` - ${tolls.paymentTypes.join(', ').replaceAll('_', ' ')}` : ''}</span>`
+    : '<b>Tolls</b><span>No toll sections reported for this route.</span>';
+  const hos = calculateHosPlan();
+  document.getElementById('hosInfo').innerHTML = `<b>Driver hours</b><span>Start ${hos.startTime} - ${hos.breaks ? `${hos.breaks} planned break${hos.breaks > 1 ? 's' : ''} (+${fmtTime(hos.addedRestSeconds)})` : 'No additional break planned'}${hos.exceedsDailyLimit ? ' - Daily driving limit exceeded' : ''}</span>`;
+  renderRestStops();
+}
+function renderRestStops() {
+  const host = document.getElementById('restStops');
+  const hos = calculateHosPlan();
+  if (!hos.breaks) { host.innerHTML = ''; return; }
+  if (!routeStopSuggestions.length) { host.innerHTML = '<div class="rest-stop-loading">Finding truck stops along the route...</div>'; return; }
+  host.innerHTML = `<b>Suggested truck services</b>${routeStopSuggestions.map((place, index) => `<div class="rest-stop"><div><strong>${escapeHtml(place.name)}</strong><small>${escapeHtml(place.type || 'Truck service')} - ${escapeHtml(place.address || '')}</small></div><button type="button" data-rest-stop-index="${index}">Add ${hos.breakMinutes} min break</button></div>`).join('')}`;
+  document.querySelectorAll('[data-rest-stop-index]').forEach(button => { button.onclick = () => addSuggestedStop(Number(button.dataset.restStopIndex)); });
+}
+function routePointAtFraction(route, fraction) {
+  const points = flattenRoutePoints(route);
+  return points[Math.max(0, Math.min(points.length - 1, Math.round((points.length - 1) * fraction)))];
+}
+async function findTruckStops(route) {
+  const hos = calculateHosPlan();
+  routeStopSuggestions = [];
+  renderRouteInsights();
+  if (!hos.breaks || !apiKey) return;
+  const serviceTypes = [
+    { query: 'truck stop', label: 'Truck stop' },
+    { query: 'truck parking', label: 'Truck parking' },
+    { query: 'fuel station', label: 'Fuel' }
+  ];
+  try {
+    const found = await Promise.all(serviceTypes.map(async (service, index) => {
+      const point = routePointAtFraction(route, (index + 1) / (serviceTypes.length + 1));
+      if (!point) return null;
+      const params = new URLSearchParams({ key: apiKey, lat: point[0], lon: point[1], radius: '30000', limit: '1', countrySet: 'US' });
+      const response = await fetch(`https://api.tomtom.com/search/2/poiSearch/${encodeURIComponent(service.query)}.json?${params}`);
+      const data = await response.json();
+      if (!response.ok) return null;
+      recordUsage('search');
+      const result = data.results?.[0];
+      return result?.position ? { type: service.label, name: result.poi?.name || result.address?.freeformAddress || service.label, address: result.address?.freeformAddress || '', lat: result.position.lat, lng: result.position.lon } : null;
+    }));
+    routeStopSuggestions = found.filter(Boolean).filter((place, index, all) => all.findIndex(other => Math.abs(other.lat - place.lat) < .001 && Math.abs(other.lng - place.lng) < .001) === index);
+  } catch (error) { console.error(error); }
+  renderRouteInsights();
+}
+function addSuggestedStop(index) {
+  const place = routeStopSuggestions[index];
+  if (!place) return;
+  const breakMinutes = calculateHosPlan().breakMinutes;
+  stops.splice(Math.max(1, stops.length - 1), 0, { ...place, delayMinutes: breakMinutes });
+  routeStopSuggestions = [];
+  renderStops(); renderMarkers(); calculate();
+}
 function renderRouteMetrics() {
   if (!lastLegs.length) return;
   const distance = lastLegs.reduce((sum, leg) => sum + (Number(leg.summary?.lengthInMeters) || 0), 0);
   const movingSeconds = lastLegs.reduce((sum, leg) => sum + routeDuration(leg.summary), 0);
   const pauseSeconds = stops.slice(1).reduce((sum, stop) => sum + (Number(stop.delayMinutes) || 0) * 60, 0);
+  const hos = calculateHosPlan();
   document.getElementById('totalDistance').textContent = fmtDistance(distance);
-  document.getElementById('totalDuration').textContent = fmtTime(movingSeconds + pauseSeconds);
-  document.getElementById('routeBadge').textContent = `${lastLegs.length} legs - <=${Math.round(kphToMph(activeVehicle().maxSpeedKph))} mph${pauseSeconds ? ` + ${Math.round(pauseSeconds / 60)} min` : ''}`;
+  document.getElementById('totalDuration').textContent = fmtTime(movingSeconds + pauseSeconds + hos.addedRestSeconds);
+  document.getElementById('routeBadge').textContent = `${lastLegs.length} legs - <=${Math.round(kphToMph(activeVehicle().maxSpeedKph))} mph${hos.breaks ? ` + ${hos.breaks} break` : ''}`;
   legsEl.innerHTML = lastLegs.map((leg, index) => {
     const pause = Number(stops[index + 1]?.delayMinutes) || 0;
     const summary = leg.summary || {};
     const trafficDelay = Number(summary.trafficDelayInSeconds) || 0;
-    return `<div class="leg"><span class="leg-number">${index + 1}</span><div class="leg-route"><b>${escapeHtml(stops[index]?.name)}</b>→ ${escapeHtml(stops[index + 1]?.name)}${pause ? `<small class="delay-note">შეყოვნება: ${pause} წთ</small>` : ''}</div><div class="leg-stats">${fmtDistance(summary.lengthInMeters || 0)}<small>${fmtTime(routeDuration(summary))}${trafficDelay ? ` · +${fmtTime(trafficDelay)}` : ''}${pause ? ` + ${pause} წთ` : ''}</small></div></div>`;
+    return `<div class="leg"><span class="leg-number">${index + 1}</span><div class="leg-route"><b>${escapeHtml(stops[index]?.name)}</b> -&gt; ${escapeHtml(stops[index + 1]?.name)}${pause ? `<small class="delay-note">Stop delay: ${pause} min</small>` : ''}</div><div class="leg-stats">${fmtDistance(summary.lengthInMeters || 0)}<small>${fmtTime(routeDuration(summary))}${trafficDelay ? ` - +${fmtTime(trafficDelay)}` : ''}${pause ? ` + ${pause} min` : ''}</small></div></div>`;
   }).join('');
+}
+function applyRoute(route) {
+  selectedRoute = route;
+  lastLegs = route.legs || [];
+  renderTrafficRoute(route);
+  renderRouteMetrics();
+  renderRouteInsights();
+  const bounds = L.latLngBounds(flattenRoutePoints(route));
+  if (bounds.isValid()) map.fitBounds(bounds, { padding: [48, 48] });
+  findTruckStops(route);
 }
 
 async function calculate() {
@@ -358,8 +495,11 @@ async function calculate() {
     traffic: 'true',
     travelMode: vehicle.travelMode,
     routeRepresentation: 'polyline',
-    sectionType: 'traffic'
+    sectionType: 'traffic,toll',
+    maxAlternatives: '2',
+    includeTollPaymentTypes: 'all'
   });
+  if (document.getElementById('avoidTolls')?.checked) params.append('avoid', 'tollRoads');
   if (vehicle.travelMode === 'truck') {
     params.set('vehicleMaxSpeed', String(Math.round(vehicle.maxSpeedKph)));
     params.set('vehicleCommercial', 'true');
@@ -369,6 +509,8 @@ async function calculate() {
       vehicleWidth: Number(vehicle.widthM.toFixed(2)), vehicleHeight: Number(vehicle.heightM.toFixed(2))
     };
     Object.entries(truckParameters).forEach(([name, value]) => { if (Number(value) > 0) params.set(name, String(value)); });
+    if (vehicle.loadTypes?.length) params.set('vehicleLoadType', vehicle.loadTypes.join(','));
+    if (vehicle.adrCode) params.set('vehicleAdrTunnelRestrictionCode', vehicle.adrCode);
   }
   setStatus('TomTom ითვლის მარშრუტს და ცოცხალ traffic-ს…');
   try {
@@ -376,12 +518,8 @@ async function calculate() {
     const data = await response.json();
     if (!response.ok || !data.routes?.[0]) throw new Error(data?.detailedError?.message || data?.error?.description || 'მარშრუტი ვერ მოიძებნა');
     recordUsage('routing');
-    const route = data.routes[0];
-    lastLegs = route.legs || [];
-    renderTrafficRoute(route);
-    renderRouteMetrics();
-    const bounds = L.latLngBounds(flattenRoutePoints(route));
-    if (bounds.isValid()) map.fitBounds(bounds, { padding: [48, 48] });
+    lastRoutes = data.routes;
+    applyRoute(lastRoutes[0]);
     setStatus('მარშრუტი მზადაა — წითელი მონაკვეთები საცობს, ყვითელი კი შენელებას აჩვენებს.');
   } catch (error) {
     console.error(error);
@@ -412,6 +550,8 @@ document.getElementById('addStop').onclick = () => {
   document.querySelector('#stops .stop-row:last-of-type .stop-input')?.focus();
 };
 document.getElementById('buildRoute').onclick = calculate;
+document.getElementById('avoidTolls').addEventListener('change', calculate);
+document.querySelectorAll('[data-hos-input]').forEach(input => input.addEventListener('change', () => { saveHosSettings(); if (selectedRoute) { renderRouteMetrics(); renderRouteInsights(); findTruckStops(selectedRoute); } }));
 document.querySelectorAll('.mode').forEach(button => {
   button.onclick = () => {
     document.querySelector('.mode.active')?.classList.remove('active'); button.classList.add('active');
@@ -430,6 +570,7 @@ document.getElementById('locate').onclick = () => {
   navigator.geolocation.getCurrentPosition(({ coords }) => map?.panTo([coords.latitude, coords.longitude]), () => setStatus('მდებარეობის წაკითხვა ვერ მოხერხდა.'));
 };
 
+loadHosSettings();
 renderUsage();
 renderVehicleNote();
 renderTruckControls();

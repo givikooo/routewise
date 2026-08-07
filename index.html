@@ -28,6 +28,26 @@
         </div>
         <p id="vehicleNote" class="vehicle-note"></p>
 
+        <section class="route-tools" aria-label="Route options">
+          <div class="route-tools-title">Route options</div>
+          <label class="option-toggle"><input id="avoidTolls" type="checkbox" /> <span>Avoid toll roads</span></label>
+          <div class="hos-fields">
+            <div class="hos-title">Driver hours (planning estimate)</div>
+            <label>Start time<input id="hosStartTime" data-hos-input type="time" value="08:00" /></label>
+            <label>Already driven, h<input id="hosDrivenHours" data-hos-input type="number" min="0" max="24" step="0.25" value="0" /></label>
+            <label>Break after, h<input id="hosBreakAfter" data-hos-input type="number" min="1" max="24" step="0.25" value="8" /></label>
+            <label>Break, min<input id="hosBreakMinutes" data-hos-input type="number" min="1" max="600" step="5" value="30" /></label>
+            <label>Daily limit, h<input id="hosDailyLimit" data-hos-input type="number" min="1" max="24" step="0.25" value="11" /></label>
+          </div>
+        </section>
+        <section id="routeInsights" class="route-insights" hidden>
+          <div class="route-tools-title">Route planning</div>
+          <div id="alternativeRoutes" class="alternative-routes"></div>
+          <div id="tollInfo" class="route-insight-row"></div>
+          <div id="hosInfo" class="route-insight-row"></div>
+          <div id="restStops" class="rest-stops"></div>
+        </section>
+
         <section class="route-panel">
           <div class="route-panel-title"><span>გაჩერებები</span><span id="stopCount">3 წერტილი</span></div>
           <div id="stops" class="stops"></div>
@@ -71,7 +91,7 @@
           <div id="truckList" class="truck-list"></div>
         </div>
         <div class="truck-editor-view" id="truckEditorView" hidden>
-          <button id="backToTruckList" class="back-to-trucks" type="button">? Back to saved trucks</button>
+          <button id="backToTruckList" class="back-to-trucks" type="button">Back to saved trucks</button>
           <p class="truck-editor-note">Create a profile in US units. Routewise converts these values before sending them to TomTom.</p>
           <form id="truckForm" class="truck-form">
             <label class="truck-field wide">Truck name<input name="name" type="text" maxlength="40" placeholder="Example: Volvo FH 2022" required /></label>
@@ -82,8 +102,10 @@
             <label class="truck-field">Length, ft<input name="lengthFt" type="number" min="0" step="0.1" placeholder="53" /></label>
             <label class="truck-field">Width, ft<input name="widthFt" type="number" min="0" step="0.1" placeholder="8.5" /></label>
             <label class="truck-field">Height, ft<input name="heightFt" type="number" min="0" step="0.1" placeholder="13.5" /></label>
+
+            <fieldset class="hazmat-fields wide"><legend>Hazmat / cargo</legend><div class="hazmat-grid"><label><input type="checkbox" name="hazmat" value="USHazmatClass1" /> Explosive</label><label><input type="checkbox" name="hazmat" value="USHazmatClass2" /> Gas</label><label><input type="checkbox" name="hazmat" value="USHazmatClass3" /> Flammable</label><label><input type="checkbox" name="hazmat" value="USHazmatClass8" /> Corrosive</label><label><input type="checkbox" name="hazmat" value="USHazmatClass9" /> Miscellaneous</label></div><label class="adr-select">ADR tunnel restriction<select name="adrCode"><option value="">None</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="E">E</option></select></label></fieldset>
             <p class="truck-form-note wide">Blank values are not sent to TomTom. A complete profile gives truck routing the best restriction data.</p>
-            <button class="primary wide" type="submit">Save truck profile <span>?</span></button>
+            <button class="primary wide" type="submit">Save truck profile <span>></span></button>
           </form>
         </div>
       </section>
