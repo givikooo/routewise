@@ -27,6 +27,14 @@ let truckProfiles = loadTruckProfiles();
 let activeTruckId = localStorage.getItem('routewise-active-truck') || 'default';let map;
 let markers = [];
 let routeLines = [];
+let driverMarkers = new Map();
+let liveDrivers = [];
+let trackingWatchId = null;
+let liveRefreshTimer = null;
+const liveDriverId = localStorage.getItem('routewise-live-driver-id') || `driver-${crypto.randomUUID?.() || Date.now().toString(36)}`;
+const supabaseUrl = String(window.ROUTEWISE_SUPABASE_URL || '').replace(/\/$/, '');
+const supabaseKey = String(window.ROUTEWISE_SUPABASE_ANON_KEY || '');
+const hasLiveBackend = /^https:\/\//.test(supabaseUrl) && supabaseKey && !supabaseUrl.includes('YOUR_PROJECT') && !supabaseKey.includes('YOUR_SUPABASE');
 let lastLegs = [];
 let calculateTimer;
 let selectedRoute = null;
@@ -54,6 +62,93 @@ function formatRouteClock(date) {
   return { clock, day };
 }
 const setStatus = message => { statusEl.textContent = message; };
+const liveApiHeaders = () => ({ apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' });
+
+function liveDriverIsFresh(driver) { return driver.is_online && Date.now() - new Date(driver.updated_at).getTime() < 60000; }
+function driverInitials(driver) { return String(driver.driver_name || '?').split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase(); }
+function formatLastSeen(value) {
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 1000));
+  return seconds < 10 ? 'ახლახან' : seconds < 60 ? `${seconds} წმ წინ` : `${Math.floor(seconds / 60)} წთ წინ`;
+}
+function renderFleet() {
+  const list = document.getElementById('fleetList');
+  const onlineDrivers = liveDrivers.filter(liveDriverIsFresh);
+  document.getElementById('fleetCount').textContent = `${onlineDrivers.length} online`;
+  list.innerHTML = onlineDrivers.length ? onlineDrivers.map(driver => `<button class="fleet-driver" type="button" data-driver-id="${escapeHtml(driver.driver_id)}"><span class="fleet-avatar">${escapeHtml(driverInitials(driver))}</span><span><b>${escapeHtml(driver.driver_name)}</b><small>${escapeHtml(driver.vehicle || '—')} · ${formatLastSeen(driver.updated_at)}</small></span><i></i></button>`).join('') : '<p class="fleet-empty">მძღოლები ჯერ არ არიან ჩართული.</p>';
+  list.querySelectorAll('[data-driver-id]').forEach(button => button.onclick = () => {
+    const driver = liveDrivers.find(item => item.driver_id === button.dataset.driverId);
+    if (driver && map) map.flyTo([driver.lat, driver.lng], Math.max(map.getZoom(), 13));
+  });
+}
+function renderDriverMarkers() {
+  if (!map || !window.L) return;
+  const onlineDrivers = liveDrivers.filter(liveDriverIsFresh);
+  const onlineIds = new Set(onlineDrivers.map(driver => driver.driver_id));
+  driverMarkers.forEach((marker, id) => { if (!onlineIds.has(id)) { map.removeLayer(marker); driverMarkers.delete(id); } });
+  onlineDrivers.forEach(driver => {
+    const position = [Number(driver.lat), Number(driver.lng)];
+    if (!Number.isFinite(position[0]) || !Number.isFinite(position[1])) return;
+    const popup = `<b>${escapeHtml(driver.driver_name)}</b><br>${escapeHtml(driver.vehicle || '')}<br><small>განახლდა ${formatLastSeen(driver.updated_at)}</small>`;
+    const existing = driverMarkers.get(driver.driver_id);
+    if (existing) { existing.setLatLng(position).bindPopup(popup); return; }
+    const icon = L.divIcon({ className: 'live-driver-icon', html: `<span>${escapeHtml(driverInitials(driver))}</span>`, iconSize: [36, 36], iconAnchor: [18, 18] });
+    driverMarkers.set(driver.driver_id, L.marker(position, { icon, title: driver.driver_name }).bindPopup(popup).addTo(map));
+  });
+}
+function renderLiveFleet() { renderFleet(); renderDriverMarkers(); }
+function localDrivers() { try { return JSON.parse(localStorage.getItem('routewise-live-drivers') || '[]'); } catch { return []; } }
+function saveLocalDriver(driver) {
+  const all = localDrivers().filter(item => item.driver_id !== driver.driver_id);
+  all.push(driver); localStorage.setItem('routewise-live-drivers', JSON.stringify(all));
+}
+async function publishDriver(driver) {
+  if (!hasLiveBackend) { saveLocalDriver(driver); liveDrivers = localDrivers(); renderLiveFleet(); return; }
+  const response = await fetch(`${supabaseUrl}/rest/v1/driver_locations?on_conflict=driver_id`, { method: 'POST', headers: { ...liveApiHeaders(), Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify(driver) });
+  if (!response.ok) throw new Error('ლაივ სერვერთან კავშირი ვერ მოხერხდა');
+}
+async function refreshLiveDrivers() {
+  try {
+    if (hasLiveBackend) {
+      const response = await fetch(`${supabaseUrl}/rest/v1/driver_locations?select=*&is_online=eq.true&order=updated_at.desc`, { headers: liveApiHeaders() });
+      if (!response.ok) throw new Error('მძღოლების ჩატვირთვა ვერ მოხერხდა');
+      liveDrivers = await response.json();
+    } else liveDrivers = localDrivers();
+    renderLiveFleet();
+  } catch (error) { console.warn(error); document.getElementById('liveConnectionNote').textContent = 'ლაივ სერვერთან კავშირი ვერ შედგა'; }
+}
+function openDriverModal() {
+  document.getElementById('driverModal').hidden = false;
+  document.getElementById('driverModal').setAttribute('aria-hidden', 'false');
+  const saved = JSON.parse(localStorage.getItem('routewise-live-driver-profile') || '{}');
+  document.getElementById('driverName').value = saved.driver_name || '';
+  document.getElementById('driverVehicle').value = saved.vehicle || '';
+}
+function closeDriverModal() { document.getElementById('driverModal').hidden = true; document.getElementById('driverModal').setAttribute('aria-hidden', 'true'); }
+function setTrackingUi(active, message = '') {
+  document.getElementById('startTracking').hidden = active;
+  document.getElementById('stopTracking').hidden = !active;
+  document.getElementById('driverTrackingStatus').textContent = message;
+}
+function startTracking(event) {
+  event.preventDefault();
+  if (!navigator.geolocation) return setTrackingUi(false, 'ამ მოწყობილობის ბრაუზერს მდებარეობა არ უჭერს მხარს.');
+  const profile = { driver_name: document.getElementById('driverName').value.trim(), vehicle: document.getElementById('driverVehicle').value.trim() };
+  if (!profile.driver_name || !profile.vehicle) return;
+  localStorage.setItem('routewise-live-driver-profile', JSON.stringify(profile));
+  localStorage.setItem('routewise-live-driver-id', liveDriverId);
+  setTrackingUi(true, 'მდებარეობა იგზავნება დისპეჩერთან.');
+  trackingWatchId = navigator.geolocation.watchPosition(async ({ coords }) => {
+    const driver = { driver_id: liveDriverId, ...profile, lat: coords.latitude, lng: coords.longitude, speed: coords.speed || 0, heading: coords.heading || 0, is_online: true, updated_at: new Date().toISOString() };
+    try { await publishDriver(driver); await refreshLiveDrivers(); } catch (error) { setTrackingUi(true, error.message); }
+  }, () => setTrackingUi(true, 'მდებარეობის წაკითხვა ვერ მოხერხდა — შეამოწმე ნებართვა.'), { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+}
+async function stopTracking() {
+  if (trackingWatchId !== null) navigator.geolocation.clearWatch(trackingWatchId);
+  trackingWatchId = null;
+  const profile = JSON.parse(localStorage.getItem('routewise-live-driver-profile') || '{}');
+  try { await publishDriver({ driver_id: liveDriverId, ...profile, lat: 0, lng: 0, is_online: false, updated_at: new Date().toISOString() }); } catch {}
+  await refreshLiveDrivers(); setTrackingUi(false, 'მდებარეობის გაზიარება შეჩერებულია.');
+}
 function numberOrZero(value) { return Math.max(0, Number(value) || 0); }
 function loadTruckProfiles() {
   try { const value = JSON.parse(localStorage.getItem('routewise-truck-profiles') || '[]'); return Array.isArray(value) ? value : []; } catch { return []; }
@@ -559,6 +654,7 @@ function initMap() {
   });
   renderStops();
   renderMarkers();
+  renderDriverMarkers();
   calculate();
 }
 
@@ -582,6 +678,12 @@ document.querySelector('[data-close-truck-modal]').onclick = closeTruckModal;
 document.getElementById('truckForm').addEventListener('submit', saveTruckProfile);
 document.getElementById('newTruckProfile').onclick = openNewTruckForm;
 document.getElementById('backToTruckList').onclick = showTruckLibrary;
+document.getElementById('openDriverMode').onclick = openDriverModal;
+document.getElementById('closeDriverModal').onclick = closeDriverModal;
+document.querySelector('[data-close-driver-modal]').onclick = closeDriverModal;
+document.getElementById('driverTrackingForm').addEventListener('submit', startTracking);
+document.getElementById('stopTracking').onclick = stopTracking;
+window.addEventListener('storage', event => { if (event.key === 'routewise-live-drivers') refreshLiveDrivers(); });
 
 document.getElementById('locate').onclick = () => {
   if (!navigator.geolocation) return setStatus('ბრაუზერი მდებარეობას არ უჭერს მხარს.');
@@ -592,6 +694,9 @@ loadHosSettings();
 renderUsage();
 renderVehicleNote();
 renderTruckControls();
+document.getElementById('liveConnectionNote').textContent = hasLiveBackend ? 'ლაივ კავშირი აქტიურია' : 'ლოკალური სატესტო რეჟიმი — მრავალ მოწყობილობაზე ჩასართავად დაამატე Supabase';
+refreshLiveDrivers();
+liveRefreshTimer = window.setInterval(refreshLiveDrivers, hasLiveBackend ? 10000 : 3000);
 if (!apiKey || apiKey === 'YOUR_TOMTOM_API_KEY') {
   setStatus('TomTom-ის ჩასართავად ჩაწერე API key ფაილში maps-config.js.');
 } else if (!window.L) {

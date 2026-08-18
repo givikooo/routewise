@@ -26,6 +26,12 @@ jobs:
         run: |
           test -n "$TOMTOM_API_KEY"
           printf "%s\n" "// Generated during deployment. Do not commit this file." "window.ROUTEWISE_TOMTOM_API_KEY = '$TOMTOM_API_KEY';" > maps-config.js
+      - name: Create live tracking runtime config
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          printf "%s\n" "// Generated during deployment. Do not commit this file." "window.ROUTEWISE_SUPABASE_URL = '${SUPABASE_URL:-}';" "window.ROUTEWISE_SUPABASE_ANON_KEY = '${SUPABASE_PUBLISHABLE_KEY:-}';" > live-config.js
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

@@ -21,12 +21,25 @@ Multi-stop route planner powered entirely by TomTom: map tiles, USA address sugg
 
 The usage card is a per-browser estimate. Check the TomTom Dashboard for authoritative account usage.
 
+## Live driver tracking
+
+The app now includes a dispatcher fleet list and a driver mode. With no extra setup it works as a local demo between tabs in the same browser. For real live tracking between driver phones and the dispatcher:
+
+1. Create a Supabase project and run [supabase/live-tracking.sql](supabase/live-tracking.sql) in its SQL Editor.
+2. Copy `live-config.example.js` to `live-config.js` and add the project's URL and anon/publishable key.
+3. Deploy over HTTPS (geolocation is blocked on ordinary HTTP outside `localhost`).
+
+The dispatcher refreshes the fleet every 10 seconds; a driver is shown online while their latest location is less than one minute old. The included database policies are deliberately an MVP so you can test the feature. Before production, add Supabase Auth and restrict each driver to their own organization and location row.
+
 ## Deploy to GitHub Pages
 
 The workflow in `.github/workflows/deploy-pages.yml` deploys `main` to GitHub Pages.
 
 1. Create a TomTom API key in [TomTom Developer Portal](https://developer.tomtom.com/).
-2. In GitHub, open **Settings → Secrets and variables → Actions** and add the secret `TOMTOM_API_KEY`.
+2. In GitHub, open **Settings → Secrets and variables → Actions** and add these secrets:
+   - `TOMTOM_API_KEY`
+   - `SUPABASE_URL` — your Supabase Project URL
+   - `SUPABASE_PUBLISHABLE_KEY` — your Supabase Publishable key
 3. Open **Settings → Pages** and select **GitHub Actions** as the source.
 4. Push to `main`, or run **Actions → Deploy Routewise to GitHub Pages → Run workflow**.
 
