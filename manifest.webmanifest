@@ -1,0 +1,12 @@
+{
+  "name": "Routewise Driver",
+  "short_name": "Routewise",
+  "lang": "ka",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fbfcfb",
+  "theme_color": "#126b4c",
+  "description": "Routewise driver live location and route planning.",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#126b4c" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icon.svg" />
     <title>Routewise — მარშრუტის დამგეგმავი</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="styles.css" />
@@ -138,6 +144,11 @@
           <button id="startTracking" class="primary" type="submit">ონლაინ გასვლა <span>→</span></button>
           <button id="stopTracking" class="secondary" type="button" hidden>მდებარეობის გაზიარების შეწყვეტა</button>
         </form>
+        <div class="pwa-install-card">
+          <b>მძღოლის აპი</b>
+          <span id="pwaInstallHint">დააყენე ტელეფონში უფრო სწრაფი გახსნისთვის.</span>
+          <button id="installPwa" class="install-pwa" type="button">აპის დაყენება</button>
+        </div>
         <p id="driverTrackingStatus" class="driver-tracking-status"></p>
       </section>
     </div>

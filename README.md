@@ -31,6 +31,10 @@ The app now includes a dispatcher fleet list and a driver mode. With no extra se
 
 The dispatcher refreshes the fleet every 10 seconds; a driver is shown online while their latest location is less than one minute old. The included database policies are deliberately an MVP so you can test the feature. Before production, add Supabase Auth and restrict each driver to their own organization and location row.
 
+## Driver PWA
+
+On a phone, open the deployed app and use **მძღოლის რეჟიმი** → **აპის დაყენება**. Android/Chrome shows an install prompt; on iPhone use Safari's **Share → Add to Home Screen**. The installed app opens in its own window and keeps the app shell available offline, but mobile operating systems can still pause GPS when an app is backgrounded or closed. Continuous background tracking needs a native mobile app.
+
 ## Deploy to GitHub Pages
 
 The workflow in `.github/workflows/deploy-pages.yml` deploys `main` to GitHub Pages.

@@ -149,6 +149,29 @@ async function stopTracking() {
   try { await publishDriver({ driver_id: liveDriverId, ...profile, lat: 0, lng: 0, is_online: false, updated_at: new Date().toISOString() }); } catch {}
   await refreshLiveDrivers(); setTrackingUi(false, 'მდებარეობის გაზიარება შეჩერებულია.');
 }
+
+let deferredInstallPrompt = null;
+function setPwaInstallUi() {
+  const button = document.getElementById('installPwa');
+  const hint = document.getElementById('pwaInstallHint');
+  const installed = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  if (installed) { button.hidden = true; hint.textContent = 'აპი უკვე დაყენებულია ამ მოწყობილობაზე.'; return; }
+  if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) hint.textContent = 'Safari-ში დააჭირე Share → Add to Home Screen.';
+  else if (!deferredInstallPrompt) hint.textContent = 'Chrome-ის მენიუდან აირჩიე Install app / Add to Home screen.';
+}
+async function installPwa() {
+  if (!deferredInstallPrompt) return setPwaInstallUi();
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  setPwaInstallUi();
+}
+function registerPwa() {
+  window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); deferredInstallPrompt = event; setPwaInstallUi(); });
+  window.addEventListener('appinstalled', () => { deferredInstallPrompt = null; setPwaInstallUi(); });
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(error => console.warn('PWA registration failed', error));
+  setPwaInstallUi();
+}
 function numberOrZero(value) { return Math.max(0, Number(value) || 0); }
 function loadTruckProfiles() {
   try { const value = JSON.parse(localStorage.getItem('routewise-truck-profiles') || '[]'); return Array.isArray(value) ? value : []; } catch { return []; }
@@ -683,6 +706,7 @@ document.getElementById('closeDriverModal').onclick = closeDriverModal;
 document.querySelector('[data-close-driver-modal]').onclick = closeDriverModal;
 document.getElementById('driverTrackingForm').addEventListener('submit', startTracking);
 document.getElementById('stopTracking').onclick = stopTracking;
+document.getElementById('installPwa').onclick = installPwa;
 window.addEventListener('storage', event => { if (event.key === 'routewise-live-drivers') refreshLiveDrivers(); });
 
 document.getElementById('locate').onclick = () => {
@@ -694,6 +718,7 @@ loadHosSettings();
 renderUsage();
 renderVehicleNote();
 renderTruckControls();
+registerPwa();
 document.getElementById('liveConnectionNote').textContent = hasLiveBackend ? 'ლაივ კავშირი აქტიურია' : 'ლოკალური სატესტო რეჟიმი — მრავალ მოწყობილობაზე ჩასართავად დაამატე Supabase';
 refreshLiveDrivers();
 liveRefreshTimer = window.setInterval(refreshLiveDrivers, hasLiveBackend ? 10000 : 3000);
